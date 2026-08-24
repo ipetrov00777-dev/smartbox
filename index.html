@@ -147,8 +147,8 @@
         <table id="stockTable">
           <thead>
             <tr>
-              <th>Штрихкод</th>
               <th>Ящик</th>
+              <th>Штрихкод</th>
               <th>Ящ. шт.</th>
               <th>Всього шт.</th>
             </tr>
@@ -279,33 +279,36 @@
         globalBarcodeTotals[barcode] += q;
       });
 
-      // Собираем уникальные элементы сохраняя порядок из базы (сначала новые)
-      const list = [];
-      const seen = new Set();
+      // Главный экран (сохраняем порядок: новые сверху)
+      const listSummary = [];
+      const seenSummary = new Set();
       dataToRender.forEach(item => {
         const box = item.box_name || 'Без ящика';
         const barcode = item.barcode || 'Немає штрихкоду';
         const boxKey = `${box}___${barcode}`;
-        
-        if (!seen.has(boxKey)) {
-          seen.add(boxKey);
-          list.push(boxItemMap[boxKey]);
+        if (!seenSummary.has(boxKey)) {
+          seenSummary.add(boxKey);
+          listSummary.push(boxItemMap[boxKey]);
         }
       });
 
       const summaryTbody = document.querySelector('#summaryTable tbody');
       summaryTbody.innerHTML = '';
-      if (list.length === 0) {
+      if (listSummary.length === 0) {
         summaryTbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає даних</td></tr>';
       } else {
-        list.forEach(rowData => {
+        listSummary.forEach(rowData => {
           const tr = document.createElement('tr');
           tr.innerHTML = `<td>${rowData.barcode}</td><td><b>${rowData.box}</b></td><td><span class="total-badge">${rowData.boxQty} шт.</span></td>`;
           summaryTbody.appendChild(tr);
         });
       }
 
-      renderStockTable(list, globalBarcodeTotals);
+      // Окно Склад: сортировка по возрастанию ящиков, а потом по штрихкоду
+      const listStock = Object.values(boxItemMap);
+      listStock.sort((a, b) => a.box.localeCompare(b.box, undefined, { numeric: true }) || a.barcode.localeCompare(b.barcode));
+
+      renderStockTable(listStock, globalBarcodeTotals);
     }
 
     function renderStockTable(list, globalTotals) {
@@ -320,8 +323,8 @@
         const totalStockQty = globalTotals[rowData.barcode] || rowData.boxQty;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${rowData.barcode}</td>
           <td><b>${rowData.box}</b></td>
+          <td>${rowData.barcode}</td>
           <td><span class="total-badge">${rowData.boxQty} шт.</span></td>
           <td><span class="global-badge">${totalStockQty} шт.</span></td>
         `;
@@ -350,22 +353,13 @@
         globalBarcodeTotals[barcode] += q;
       });
 
-      const list = [];
-      const seen = new Set();
-      globalData.forEach(item => {
-        const box = item.box_name || 'Без ящика';
-        const barcode = item.barcode || 'Немає штрихкоду';
-        const boxKey = `${box}___${barcode}`;
-        if (!seen.has(boxKey)) {
-          seen.add(boxKey);
-          list.push(boxItemMap[boxKey]);
-        }
-      });
+      let listStock = Object.values(boxItemMap);
 
-      const filtered = list.filter(item => 
+      const filtered = listStock.filter(item => 
         item.barcode.toLowerCase().includes(query) || item.box.toLowerCase().includes(query)
       );
 
+      filtered.sort((a, b) => a.box.localeCompare(b.box, undefined, { numeric: true }) || a.barcode.localeCompare(b.barcode));
       renderStockTable(filtered, globalBarcodeTotals);
     }
 
