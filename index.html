@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
@@ -77,8 +77,8 @@
       <button type="button" class="clear-btn" onclick="document.getElementById('box').value=''; document.getElementById('box').focus();" title="Очистити">✕</button>
     </div>
 
-    <label for="barcode">Скан-код товара (Скануйте):</label>
-    <input type="text" id="barcode" placeholder="Штрихкод" autocomplete="off">
+    <label for="barcode">Скан-код товара (Тільки цифри):</label>
+    <input type="text" id="barcode" inputmode="numeric" pattern="[0-9]*" placeholder="Тільки цифри" autocomplete="off" oninput="this.value = this.value.replace(/\D/g, '')">
 
     <label for="qty">Кількість (шт):</label>
     <input type="number" id="qty" value="1" min="1">
@@ -135,7 +135,7 @@
     </div>
   </div>
 
-  <!-- Модальное окно: Склад (с колонками Ящ. шт. и Всього шт.) -->
+  <!-- Модальное окно: Склад -->
   <div id="stockModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -235,7 +235,6 @@
     }
 
     function updateUI() {
-      // 1. Модалка истории
       const fullHistoryTbody = document.querySelector('#fullHistoryTable tbody');
       fullHistoryTbody.innerHTML = '';
       if (globalData.length === 0) {
@@ -256,14 +255,11 @@
         });
       }
 
-      // 2. Сводка и Склад
       renderSummaryAndStock(globalData);
     }
 
     function renderSummaryAndStock(dataToRender) {
-      // Шаг А: Считаем сумму по каждому конкретному ящику и штрихкоду
       const boxItemMap = {};
-      // Шаг Б: Считаем общую сумму конкретного штрихкода по ВСЕМУ складу
       const globalBarcodeTotals = {};
 
       dataToRender.forEach(item => {
@@ -271,14 +267,12 @@
         const barcode = item.barcode || 'Немає штрихкоду';
         const q = parseInt(item.qty) || 1;
 
-        // Суммируем в ящике
         const boxKey = `${box}___${barcode}`;
         if (!boxItemMap[boxKey]) {
           boxItemMap[boxKey] = { box: box, barcode: barcode, boxQty: 0 };
         }
         boxItemMap[boxKey].boxQty += q;
 
-        // Суммируем по всему складу для этого штрихкода
         if (!globalBarcodeTotals[barcode]) {
           globalBarcodeTotals[barcode] = 0;
         }
@@ -286,10 +280,8 @@
       });
 
       let list = Object.values(boxItemMap);
-      // Сортировка по штрихкоду, а потом по ящику
       list.sort((a, b) => a.barcode.localeCompare(b.barcode) || a.box.localeCompare(b.box, undefined, { numeric: true }));
 
-      // Главный экран (оставляем привычную сводку)
       const summaryTbody = document.querySelector('#summaryTable tbody');
       summaryTbody.innerHTML = '';
       if (list.length === 0) {
@@ -302,7 +294,6 @@
         });
       }
 
-      // Окно «Склад» с новыми колонками «Ящ. шт.» и «Всього шт.»
       renderStockTable(list, globalBarcodeTotals);
     }
 
@@ -350,7 +341,6 @@
 
       let list = Object.values(boxItemMap);
 
-      // Фильтрация по поиску (штрихкод или ящик)
       const filtered = list.filter(item => 
         item.barcode.toLowerCase().includes(query) || item.box.toLowerCase().includes(query)
       );
