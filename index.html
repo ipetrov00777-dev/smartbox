@@ -77,8 +77,8 @@
       <button type="button" class="clear-btn" onclick="document.getElementById('box').value=''; document.getElementById('box').focus();" title="Очистити">✕</button>
     </div>
 
-    <label for="barcode">Скан-код товара (Тільки цифри):</label>
-    <input type="text" id="barcode" inputmode="numeric" pattern="[0-9]*" placeholder="Тільки цифри" autocomplete="off" oninput="this.value = this.value.replace(/\D/g, '')">
+    <label for="barcode">Скан-код товару:</label>
+    <input type="text" id="barcode" inputmode="numeric" pattern="[0-9]*" placeholder="Скануйте штрихкод" autocomplete="off" oninput="this.value = this.value.replace(/\D/g, '')">
 
     <label for="qty">Кількість (шт):</label>
     <input type="number" id="qty" value="1" min="1">
