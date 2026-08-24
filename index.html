@@ -279,8 +279,19 @@
         globalBarcodeTotals[barcode] += q;
       });
 
-      let list = Object.values(boxItemMap);
-      list.sort((a, b) => a.barcode.localeCompare(b.barcode) || a.box.localeCompare(b.box, undefined, { numeric: true }));
+      // Собираем уникальные элементы сохраняя порядок из базы (сначала новые)
+      const list = [];
+      const seen = new Set();
+      dataToRender.forEach(item => {
+        const box = item.box_name || 'Без ящика';
+        const barcode = item.barcode || 'Немає штрихкоду';
+        const boxKey = `${box}___${barcode}`;
+        
+        if (!seen.has(boxKey)) {
+          seen.add(boxKey);
+          list.push(boxItemMap[boxKey]);
+        }
+      });
 
       const summaryTbody = document.querySelector('#summaryTable tbody');
       summaryTbody.innerHTML = '';
@@ -339,13 +350,22 @@
         globalBarcodeTotals[barcode] += q;
       });
 
-      let list = Object.values(boxItemMap);
+      const list = [];
+      const seen = new Set();
+      globalData.forEach(item => {
+        const box = item.box_name || 'Без ящика';
+        const barcode = item.barcode || 'Немає штрихкоду';
+        const boxKey = `${box}___${barcode}`;
+        if (!seen.has(boxKey)) {
+          seen.add(boxKey);
+          list.push(boxItemMap[boxKey]);
+        }
+      });
 
       const filtered = list.filter(item => 
         item.barcode.toLowerCase().includes(query) || item.box.toLowerCase().includes(query)
       );
 
-      filtered.sort((a, b) => a.barcode.localeCompare(b.barcode) || a.box.localeCompare(b.box, undefined, { numeric: true }));
       renderStockTable(filtered, globalBarcodeTotals);
     }
 
