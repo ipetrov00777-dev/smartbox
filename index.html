@@ -133,22 +133,33 @@
         let globalData = [];
 
         window.onload = function() {
+            const boxInput = document.getElementById('box');
+            if (boxInput) {
+                boxInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); const bc = document.getElementById('barcode'); if (bc) bc.focus(); }
+                });
+            }
+
+            const barcodeInput = document.getElementById('barcode');
+            if (barcodeInput) {
+                barcodeInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); sendScan(); }
+                });
+            }
+
             fetchScansData();
         };
 
-        document.getElementById('box').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('barcode').focus(); }
-        });
-
-        document.getElementById('barcode').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') { e.preventDefault(); sendScan(); }
-        });
-
         async function sendScan() {
-            const box = document.getElementById('box').value.trim();
-            const barcode = document.getElementById('barcode').value.trim();
-            const qty = parseInt(document.getElementById('qty').value) || 1;
-            const worker = document.getElementById('worker').value;
+            const boxEl = document.getElementById('box');
+            const barcodeEl = document.getElementById('barcode');
+            const qtyEl = document.getElementById('qty');
+            const workerEl = document.getElementById('worker');
+
+            const box = boxEl ? boxEl.value.trim() : '';
+            const barcode = barcodeEl ? barcodeEl.value.trim() : '';
+            const qty = qtyEl ? (parseInt(qtyEl.value) || 1) : 1;
+            const worker = workerEl ? workerEl.value : 'Оператор 1';
 
             if (!box || !barcode) {
                 showStatus("Заповніть Ящик та Скан-код!", "error");
@@ -176,9 +187,9 @@
 
                 if (response.ok) {
                     showStatus(`Збережено! Ящик: ${box} | Штрихкод: ${barcode}`, "success");
-                    document.getElementById('barcode').value = '';
-                    document.getElementById('qty').value = '1';
-                    document.getElementById('barcode').focus();
+                    if (barcodeEl) barcodeEl.value = '';
+                    if (qtyEl) qtyEl.value = '1';
+                    if (barcodeEl) barcodeEl.focus();
                     fetchScansData();
                 } else {
                     const err = await response.text();
@@ -206,23 +217,25 @@
 
         function updateUI() {
             const fullHistoryTbody = document.querySelector('#fullHistoryTable tbody');
-            fullHistoryTbody.innerHTML = '';
-            if (globalData.length === 0) {
-                fullHistoryTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Поки немає записів</td></tr>';
-            } else {
-                globalData.forEach(item => {
-                    let formattedDate = '';
-                    if (item.created_at) {
-                        const dt = new Date(item.created_at);
-                        const day = String(dt.getDate()).padStart(2, '0');
-                        const month = String(dt.getMonth() + 1).padStart(2, '0');
-                        const time = dt.toTimeString().substring(0, 5);
-                        formattedDate = `${day}.${month} ${time}`;
-                    }
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${formattedDate}</td><td><b>${item.box_name || ''}</b></td><td>${item.barcode || ''}</td><td><span class="total-badge">+${item.qty}</span></td>`;
-                    fullHistoryTbody.appendChild(tr);
-                });
+            if (fullHistoryTbody) {
+                fullHistoryTbody.innerHTML = '';
+                if (globalData.length === 0) {
+                    fullHistoryTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Поки немає записів</td></tr>';
+                } else {
+                    globalData.forEach(item => {
+                        let formattedDate = '';
+                        if (item.created_at) {
+                            const dt = new Date(item.created_at);
+                            const day = String(dt.getDate()).padStart(2, '0');
+                            const month = String(dt.getMonth() + 1).padStart(2, '0');
+                            const time = dt.toTimeString().substring(0, 5);
+                            formattedDate = `${day}.${month} ${time}`;
+                        }
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td>${formattedDate}</td><td><b>${item.box_name || ''}</b></td><td>${item.barcode || ''}</td><td><span class="total-badge">+${item.qty}</span></td>`;
+                        fullHistoryTbody.appendChild(tr);
+                    });
+                }
             }
 
             renderSummaryAndStock(globalData);
@@ -268,29 +281,31 @@
             });
 
             const summaryTbody = document.querySelector('#summaryTable tbody');
-            summaryTbody.innerHTML = '';
-            if (listSummary.length === 0) {
-                summaryTbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає даних</td></tr>';
-            } else {
-                listSummary.forEach(rowData => {
-                    const tr = document.createElement('tr');
-                    
-                    const isUnknown = rowData.product_code === 'БД_?';
-                    if (isUnknown) {
-                        tr.style.backgroundColor = '#fffdf0';
-                    }
+            if (summaryTbody) {
+                summaryTbody.innerHTML = '';
+                if (listSummary.length === 0) {
+                    summaryTbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає даних</td></tr>';
+                } else {
+                    listSummary.forEach(rowData => {
+                        const tr = document.createElement('tr');
+                        
+                        const isUnknown = rowData.product_code === 'БД_?';
+                        if (isUnknown) {
+                            tr.style.backgroundColor = '#fffdf0';
+                        }
 
-                    tr.innerHTML = `
-                        <td>
-                            ${rowData.barcode} 
-                            <span class="total-badge" style="background: ${isUnknown ? '#f8d7da' : '#e8f0fe'}; color: ${isUnknown ? '#721c24' : '#1a73e8'}; font-size:11px; margin-left:4px;">${rowData.product_code}</span>
-                            <br><small style="color:${isUnknown ? '#c5221f' : '#666'}; font-weight:${isUnknown ? 'bold' : 'normal'};">${rowData.name || ''}</small>
-                        </td>
-                        <td><b>${rowData.box}</b></td>
-                        <td><span class="total-badge">${rowData.boxQty} шт.</span></td>
-                    `;
-                    summaryTbody.appendChild(tr);
-                });
+                        tr.innerHTML = `
+                            <td>
+                                ${rowData.barcode} 
+                                <span class="total-badge" style="background: ${isUnknown ? '#f8d7da' : '#e8f0fe'}; color: ${isUnknown ? '#721c24' : '#1a73e8'}; font-size:11px; margin-left:4px;">${rowData.product_code}</span>
+                                <br><small style="color:${isUnknown ? '#c5221f' : '#666'}; font-weight:${isUnknown ? 'bold' : 'normal'};">${rowData.name || ''}</small>
+                            </td>
+                            <td><b>${rowData.box}</b></td>
+                            <td><span class="total-badge">${rowData.boxQty} шт.</span></td>
+                        `;
+                        summaryTbody.appendChild(tr);
+                    });
+                }
             }
 
             const listStock = Object.values(boxItemMap);
@@ -301,6 +316,7 @@
 
         function renderStockTable(list, globalTotals) {
             const stockTbody = document.querySelector('#stockTable tbody');
+            if (!stockTbody) return;
             stockTbody.innerHTML = '';
             if (list.length === 0) {
                 stockTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Нічого не знайдено</td></tr>';
@@ -321,7 +337,8 @@
         }
 
         function filterStock() {
-            const query = document.getElementById('stockSearch').value.toLowerCase().trim();
+            const searchInput = document.getElementById('stockSearch');
+            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
             
             const boxItemMap = {};
             const globalBarcodeTotals = {};
@@ -352,18 +369,22 @@
         }
 
         function openHistoryModal() {
-            document.getElementById('historyModal').style.display = 'block';
+            const modal = document.getElementById('historyModal');
+            if (modal) modal.style.display = 'block';
             fetchScansData();
         }
 
         function openStockModal() {
-            document.getElementById('stockModal').style.display = 'block';
-            document.getElementById('stockSearch').value = '';
+            const modal = document.getElementById('stockModal');
+            if (modal) modal.style.display = 'block';
+            const searchInput = document.getElementById('stockSearch');
+            if (searchInput) searchInput.value = '';
             fetchScansData();
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
+            const modal = document.getElementById(modalId);
+            if (modal) modal.style.display = 'none';
         }
 
         window.onclick = function(event) {
@@ -374,8 +395,10 @@
 
         function showStatus(text, type) {
             const statusDiv = document.getElementById('status');
-            statusDiv.innerText = text;
-            statusDiv.className = `status ${type}`;
+            if (statusDiv) {
+                statusDiv.innerText = text;
+                statusDiv.className = `status ${type}`;
+            }
         }
     </script>
 </body>
