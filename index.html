@@ -1,168 +1,4 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SmartBox Термінал</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: #f4f6f9; padding: 10px; color: #333; }
-    .card { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 480px; margin: 0 auto 15px auto; }
-    h2 { font-size: 20px; margin-bottom: 15px; text-align: center; color: #1a73e8; }
-    label { font-size: 13px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
-    input, select { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; outline: none; }
-    input:focus { border-color: #1a73e8; background-color: #e8f0fe; }
-    
-    .input-group { position: relative; }
-    .clear-btn {
-      position: absolute; right: 12px; top: 38%; transform: translateY(-50%);
-      background: #e0e0e0; border: none; border-radius: 50%; width: 26px; height: 26px;
-      font-size: 14px; font-weight: bold; color: #555; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    }
-    .clear-btn:active { background: #ccc; }
-
-    .btn { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; color: white; background-color: #28a745; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 8px; }
-    .btn:active { background-color: #218838; }
-    
-    .menu-buttons { display: flex; gap: 8px; }
-    .btn-secondary { flex: 1; padding: 12px; font-size: 14px; font-weight: bold; color: #1a73e8; background-color: #e8f0fe; border: 1px solid #baddff; border-radius: 8px; cursor: pointer; }
-    .btn-secondary:active { background-color: #d2e3fc; }
-
-    .status { margin-top: 12px; padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; display: none; }
-    .status.success { background-color: #d4edda; color: #155724; display: block; }
-    .status.error { background-color: #f8d7da; color: #721c24; display: block; }
-
-    .history-card { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 480px; margin: 0 auto; }
-    .history-card h3 { font-size: 16px; margin-bottom: 10px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 6px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; }
-    th { background-color: #f8f9fa; color: #555; font-weight: bold; }
-    .total-badge { background: #e8f0fe; color: #1a73e8; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-    .global-badge { background: #e2fcd6; color: #28a745; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-    .unknown-badge { background: #f8d7da; color: #721c24; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-
-    /* Модальные окна */
-    .modal {
-      display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
-      background-color: rgba(0,0,0,0.5); padding: 10px;
-    }
-    .modal-content {
-      background-color: #fff; margin: 20px auto; padding: 15px; border-radius: 12px;
-      max-width: 500px; max-height: 85vh; display: flex; flex-direction: column;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-    .modal-header {
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 10px;
-    }
-    .modal-header h3 { font-size: 18px; color: #1a73e8; }
-    .close-btn { background: none; border: none; font-size: 22px; font-weight: bold; color: #777; cursor: pointer; }
-    .modal-body { overflow-y: auto; flex-grow: 1; }
-  </style>
-</head>
-<body>
-
-  <div class="card">
-    <h2>SmartBox Термінал</h2>
-    
-    <label for="worker">Працівник:</label>
-    <select id="worker">
-      <option value="Саня Павликов">Саня Павликов</option>
-      <option value="Оператор 1">Оператор 1</option>
-      <option value="Оператор 2">Оператор 2</option>
-    </select>
-
-    <label for="box">Ящик (Скануйте):</label>
-    <div class="input-group">
-      <input type="text" id="box" placeholder="Наприклад: Box-1" autocomplete="off" autofocus onclick="this.value=''">
-      <button type="button" class="clear-btn" onclick="document.getElementById('box').value=''; document.getElementById('box').focus();" title="Очистити">✕</button>
-    </div>
-
-    <label for="barcode">Скан-код товару:</label>
-    <input type="text" id="barcode" inputmode="numeric" pattern="[0-9]*" placeholder="Скануйте штрихкод" autocomplete="off" oninput="this.value = this.value.replace(/\D/g, '')">
-
-    <label for="qty">Кількість (шт):</label>
-    <input type="number" id="qty" value="1" min="1">
-
-    <button class="btn" onclick="sendScan()">Зберегти запис</button>
-    
-    <div class="menu-buttons">
-      <button class="btn-secondary" onclick="openHistoryModal()">📜 Історія</button>
-      <button class="btn-secondary" onclick="openStockModal()">📦 Склад</button>
-    </div>
-
-    <div id="status" class="status"></div>
-  </div>
-
-  <!-- Главный экран: Сводная таблица -->
-  <div class="history-card">
-    <h3>📊 Зведена кількість по товарах</h3>
-    <table id="summaryTable">
-      <thead>
-        <tr>
-          <th>Штрихкод / Назва</th>
-          <th>Ящик</th>
-          <th>Всього шт.</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td colspan="3" style="text-align: center; color: #777;">Завантаження даних...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Модальное окно: Повна історія -->
-  <div id="historyModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📜 Повна історія сканувань</h3>
-        <button class="close-btn" onclick="closeModal('historyModal')">&times;</button>
-      </div>
-      <div class="modal-body">
-        <table id="fullHistoryTable">
-          <thead>
-            <tr>
-              <th>Дата і Час</th>
-              <th>Ящик</th>
-              <th>Штрихкод</th>
-              <th>Кільк.</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Модальное окно: Склад -->
-  <div id="stockModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📦 Загальний склад</h3>
-        <button class="close-btn" onclick="closeModal('stockModal')">&times;</button>
-      </div>
-      <div class="modal-body">
-        <input type="text" id="stockSearch" placeholder="🔍 Пошук по штрихкоду або ящику..." oninput="filterStock()" autocomplete="off" style="margin-bottom: 10px;">
-        <table id="stockTable">
-          <thead>
-            <tr>
-              <th>Ящик</th>
-              <th>Штрихкод</th>
-              <th>Ящ. шт.</th>
-              <th>Всього шт.</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <script>
+<script>
     const SUPABASE_URL = "https://hjsdayynmmzajerjgqrb.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2RheXlubW16YWplcmpncXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY4MTEsImV4cCI6MjEwMTkzMjgxMX0.4lMQf7lpymLCEAA4OJCUwGUda1nKfoxduADDbaWGo0w";
 
@@ -180,32 +16,7 @@
       if (e.key === 'Enter') { e.preventDefault(); sendScan(); }
     });
 
-    // Функция проверки товара в базе перед отправкой
-    async function checkProductInDatabase(barcode) {
-      try {
-        // Сначала ищем в таблице продуктов/штрихкодов (пробуем найти совпадение по штрихкоду)
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/products?barcode=eq.${barcode}&select=*`, {
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-        });
-        const products = await response.json();
-        
-        if (products && products.length > 0) {
-          return {
-            product_code: products[0].product_code || products[0].code || barcode,
-            product_name: products[0].name || products[0].product_name || "Знайдений товар"
-          };
-        }
-      } catch (e) {
-        console.error("Поשлка перевірки товару:", e);
-      }
-
-      // Если не нашли — возвращаем требуемые значения по умолчанию ("БД_?")
-      return {
-        product_code: "БД_?",
-        product_name: "Невідомий товар"
-      };
-    }
-
+    // Шаг 2: Отправляем чистые сырые данные (без лишних полей), склад не останавливается
     async function sendScan() {
       const box = document.getElementById('box').value.trim();
       const barcode = document.getElementById('barcode').value.trim();
@@ -217,16 +28,11 @@
         return;
       }
 
-      // Узнаем, есть ли товар в базе, получаем код и название
-      const productInfo = await checkProductInDatabase(barcode);
-
       const payload = { 
         box_name: box, 
         barcode: barcode, 
         qty: qty, 
-        created_by: worker,
-        product_code: productInfo.product_code,
-        product_name: productInfo.product_name
+        created_by: worker
       };
 
       try {
@@ -242,7 +48,7 @@
         });
 
         if (response.ok) {
-          showStatus(`Збережено! ${box} -> ${barcode} (${productInfo.product_code})`, "success");
+          showStatus(`Збережено! Ящик: ${box} | Штрихкод: ${barcode}`, "success");
           document.getElementById('barcode').value = '';
           document.getElementById('qty').value = '1';
           document.getElementById('barcode').focus();
@@ -256,9 +62,10 @@
       }
     }
 
+    // Шаг 3: Загружаем данные из умного SQL-представления view_dashboard_stock
     async function fetchScansData() {
       try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_scans?select=*&order=created_at.desc&limit=200`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/view_dashboard_stock?select=*&order=created_at.desc&limit=200`, {
           method: 'get',
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }
         });
@@ -306,7 +113,13 @@
 
         const boxKey = `${box}___${barcode}`;
         if (!boxItemMap[boxKey]) {
-          boxItemMap[boxKey] = { box: box, barcode: barcode, boxQty: 0, name: item.product_name };
+          boxItemMap[boxKey] = { 
+            box: box, 
+            barcode: barcode, 
+            boxQty: 0, 
+            name: item.product_name, 
+            product_code: item.product_code 
+          };
         }
         boxItemMap[boxKey].boxQty += q;
 
@@ -335,7 +148,22 @@
       } else {
         listSummary.forEach(rowData => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${rowData.barcode}<br><small style="color:#666;">${rowData.name || ''}</small></td><td><b>${rowData.box}</b></td><td><span class="total-badge">${rowData.boxQty} шт.</span></td>`;
+          
+          // Если товар не найден в базе, подсветим строку или код желтоватым оттенком для контроля
+          const isUnknown = rowData.product_code === 'БД_?';
+          if (isUnknown) {
+            tr.style.backgroundColor = '#fffdf0';
+          }
+
+          tr.innerHTML = `
+            <td>
+              ${rowData.barcode} 
+              <span class="total-badge" style="background: ${isUnknown ? '#f8d7da' : '#e8f0fe'}; color: ${isUnknown ? '#721c24' : '#1a73e8'}; font-size:11px; margin-left:4px;">${rowData.product_code}</span>
+              <br><small style="color:${isUnknown ? '#c5221f' : '#666'}; font-weight:${isUnknown ? 'bold' : 'normal'};">${rowData.name || ''}</small>
+            </td>
+            <td><b>${rowData.box}</b></td>
+            <td><span class="total-badge">${rowData.boxQty} шт.</span></td>
+          `;
           summaryTbody.appendChild(tr);
         });
       }
@@ -425,5 +253,3 @@
       statusDiv.className = `status ${type}`;
     }
   </script>
-</body>
-</html>
