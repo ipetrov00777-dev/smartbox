@@ -1,7 +1,7 @@
 const SUPABASE_URL = "https://hjsdayynmmzajerjgqrb.supabase.co";
 const HEADERS = {
-    "apikey": "sb_publishable_nmBum15vlviRBp3pBqQGEw_F34s5Q7E",
-    "Authorization": "Bearer sb_publishable_nmBum15vlviRBp3pBqQGEw_F34s5Q7E",
+    "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2RheXlubW16YWplcmpncXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY4MTEsImV4cCI6MjEwMTkzMjgxMX0.4lMQf7lpymLCEAA4OJCUwGUda1nKfoxduADDbaWGo0w",
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2RheXlubW16YWplcmpncXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY4MTEsImV4cCI6MjEwMTkzMjgxMX0.4lMQf7lpymLCEAA4OJCUwGUda1nKfoxduADDbaWGo0w",
     "Content-Type": "application/json",
     "Prefer": "return=representation"
 };
