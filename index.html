@@ -151,6 +151,7 @@
     let globalStock = [];
     let globalProducts = [];
     let currentScannedMatches = [];
+    let originalStockMap = {}; // Сохраняем исходные значения остатков для каждого ящика
     let currentProductName = '';
     let currentProductCode = '';
 
@@ -217,10 +218,14 @@
         document.getElementById('resProductCode').innerText = currentProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        currentScannedMatches = matches.map(item => ({
-            ...item,
-            qty: parseInt(item.qty, 10) || 0
-        }));
+        currentScannedMatches = matches.map(item => {
+            const qtyVal = parseInt(item.qty, 10) || 0;
+            originalStockMap[item.id] = qtyVal; // Запоминаем начальное значение
+            return {
+                ...item,
+                qty: qtyVal
+            };
+        });
 
         resultCard.style.display = 'block';
         renderLocationsTable();
@@ -243,12 +248,21 @@
             const existingInput = document.getElementById(inputId);
             const currentInputValue = existingInput ? (parseInt(existingInput.value, 10) || 0) : 0;
             
+            const origQty = originalStockMap[item.id] !== undefined ? originalStockMap[item.id] : item.qty;
+            const remainder = origQty - currentInputValue;
+
+            // Отображение остатка в реальном времени (например: 12 шт. / 8)
+            let remainderHtml = `<span class="total-badge" id="availBadge_${idx}">${origQty} шт.</span>`;
+            if (currentInputValue > 0) {
+                remainderHtml += ` / <span style="color: #dc3545; font-weight: bold;">${remainder}</span>`;
+            }
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td><span class="total-badge" id="availBadge_${idx}">${item.qty} шт.</span></td>
+                <td>${remainderHtml}</td>
                 <td>
-                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${item.qty}" oninput="handleQtyInput(${idx}, ${item.qty})">
+                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${origQty}" oninput="handleQtyInput(${idx}, ${origQty})">
                 </td>
             `;
             tbody.appendChild(tr);
@@ -269,6 +283,20 @@
             input.value = maxVal;
         }
 
+        // Динамически обновляем отображение остатка в строке таблицы без перерисовки всей таблицы (чтобы фокус не сбивался)
+        const item = currentScannedMatches[idx];
+        const origQty = originalStockMap[item.id];
+        const remainder = origQty - val;
+        const badgeSpan = document.getElementById(`availBadge_${idx}`);
+        
+        if (badgeSpan) {
+            let html = `${origQty} шт.`;
+            if (val > 0) {
+                html += ` / <span style="color: #dc3545; font-weight: bold;">${remainder}</span>`;
+            }
+            badgeSpan.parentElement.innerHTML = html;
+        }
+
         updateSummaryTotals();
     }
 
@@ -279,7 +307,8 @@
 
         currentScannedMatches.forEach((item, idx) => {
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
-            totalStock += item.qty;
+            const origQty = originalStockMap[item.id] !== undefined ? originalStockMap[item.id] : item.qty;
+            totalStock += origQty;
             totalReserved += inputVal;
 
             if (inputVal > 0) {
@@ -315,8 +344,11 @@
                     qty: qtyToReserve 
                 });
 
+                // Уменьшаем реальный остаток и обновляем сохраненный оригинал
                 item.qty -= qtyToReserve;
+                originalStockMap[item.id] = item.qty;
                 inputElement.value = 0;
+                inputElement.max = item.qty;
                 addedCount++;
             }
         });
@@ -358,6 +390,7 @@
         const stockItem = currentScannedMatches.find(i => i.id === item.id);
         if (stockItem) {
             stockItem.qty += item.qty;
+            originalStockMap[stockItem.id] = stockItem.qty; // Возвращаем количество в оригинал
         }
         
         cart.splice(index, 1);
