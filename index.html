@@ -68,7 +68,7 @@
     <!-- 2. РАЗДЕЛ: ИНФОРМАЦИЯ / СКАНУВАННЯ -->
     <div id="infoSection" class="screen">
         <div class="header-bar">
-            <h2>ℹ️ Сканування та залишки</h2>
+            <h2>ℹ️️ Сканування та залишки</h2>
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         
@@ -84,7 +84,6 @@
                 <h3 id="resProductName">Назва товару</h3>
                 <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                 <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
-                <p><b>Загальний залишок:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
                 <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
             </div>
 
@@ -208,9 +207,6 @@
         document.getElementById('resProductName').innerText = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
-
-        const totalStock = matches.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
-        document.getElementById('resTotalStock').innerText = `${totalStock} шт.`;
         
         // При сканировании сбрасываем счетчик зарезервированного в карточке на 0
         document.getElementById('resTotalQty').innerText = `0 шт.`;
@@ -236,6 +232,9 @@
             `;
             tbody.appendChild(tr);
         });
+
+        // Проверяем, есть ли уже этот товар в корзинке (если сканируем повторно)
+        updateReservedDisplay(targetProductCode);
     }
 
     function addToCartFromTable(id, box_name, product_code, product_name, maxQty, inputId) {
@@ -261,9 +260,7 @@
             cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
         }
 
-        // Обновляем строку "Зарезервировано шт." в карточке на основе текущей корзинки для этого товара
         updateReservedDisplay(product_code);
-
         updateCartBadge();
         alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
     }
