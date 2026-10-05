@@ -33,7 +33,7 @@
 </head>
 <body>
 
-    <h2>📦 Облік складу (ТСД)</h2>
+    <h2>📦 Складський облік (SmartBox - TSD)</h2>
 
     <!-- Форма сканирования -->
     <div class="card">
@@ -46,32 +46,33 @@
         </div>
         <div class="form-group">
             <label for="box">Ящик / Полиця:</label>
-            <input type="text" id="box" placeholder="Введіть або скануйте ящик">
+            <input type="text" id="box" placeholder="Введіть або скануйте ящик (напр. Box-10)">
         </div>
         <div class="form-group">
-            <label for="barcode">Штрихкод товару:</label>
-            <input type="text" id="barcode" placeholder="Скануйте штрихкод">
+            <label for="product_code">Код товару (product_code):</label>
+            <input type="text" id="product_code" placeholder="Введіть код товару (напр. PRD-101)">
         </div>
         <div class="form-group">
             <label for="qty">Кількість:</label>
             <input type="number" id="qty" value="1" min="1">
         </div>
+        <button onclick="sendScan()">Зберегти сканування</button>
         <div id="status"></div>
     </div>
 
     <!-- Кнопки управления / модалки -->
     <div class="btn-row">
         <button onclick="openStockModal()">📊 Залишки по ящиках</button>
-        <button onclick="openHistoryModal()">📜 Історія сканувань</button>
+        <button onclick="openHistoryModal()">📜 Перегляд залишків</button>
     </div>
 
     <!-- Основная таблица сводки -->
     <div class="card">
-        <h3>Поточні залишки в ящиках</h3>
+        <h3>Поточні залишки (з бази даних)</h3>
         <table id="summaryTable">
             <thead>
                 <tr>
-                    <th>Товар / Код</th>
+                    <th>Код товару</th>
                     <th>Ящик</th>
                     <th>Кількість</th>
                 </tr>
@@ -86,37 +87,16 @@
     <div id="stockModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('stockModal')">&times;</span>
-            <h3>Детальні залишки</h3>
-            <input type="text" id="stockSearch" placeholder="Пошук по ящику або штрихкоду..." onkeyup="filterStock()" style="margin-bottom: 10px;">
+            <h3>Детальні залишки складу</h3>
+            <input type="text" id="stockSearch" placeholder="Пошук по ящику або коду..." onkeyup="filterStock()" style="margin-bottom: 10px;">
             <div style="max-height: 400px; overflow-y: auto;">
                 <table id="stockTable">
                     <thead>
                         <tr>
                             <th>Ящик</th>
-                            <th>Штрихкод</th>
-                            <th>В ящику</th>
-                            <th>Всього</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно: Історія -->
-    <div id="historyModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('historyModal')">&times;</span>
-            <h3>Остання історія сканувань</h3>
-            <div style="max-height: 400px; overflow-y: auto;">
-                <table id="fullHistoryTable">
-                    <thead>
-                        <tr>
-                            <th>Час</th>
-                            <th>Ящик</th>
-                            <th>Штрихкод</th>
-                            <th>К-сть</th>
+                            <th>Код товару</th>
+                            <th>Кількість</th>
+                            <th>Дата приходу</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -136,45 +116,47 @@
             const boxInput = document.getElementById('box');
             if (boxInput) {
                 boxInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') { e.preventDefault(); const bc = document.getElementById('barcode'); if (bc) bc.focus(); }
+                    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('product_code').focus(); }
                 });
             }
 
-            const barcodeInput = document.getElementById('barcode');
-            if (barcodeInput) {
-                barcodeInput.addEventListener('keypress', function(e) {
+            const codeInput = document.getElementById('product_code');
+            if (codeInput) {
+                codeInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('qty').focus(); }
+                });
+            }
+
+            const qtyInput = document.getElementById('qty');
+            if (qtyInput) {
+                qtyInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') { e.preventDefault(); sendScan(); }
                 });
             }
 
-            fetchScansData();
+            fetchStockData();
         };
 
         async function sendScan() {
-            const boxEl = document.getElementById('box');
-            const barcodeEl = document.getElementById('barcode');
-            const qtyEl = document.getElementById('qty');
-            const workerEl = document.getElementById('worker');
+            const box = document.getElementById('box').value.trim();
+            const product_code = document.getElementById('product_code').value.trim();
+            const qty = parseInt(document.getElementById('qty').value) || 1;
 
-            const box = boxEl ? boxEl.value.trim() : '';
-            const barcode = barcodeEl ? barcodeEl.value.trim() : '';
-            const qty = qtyEl ? (parseInt(qtyEl.value) || 1) : 1;
-            const worker = workerEl ? workerEl.value : 'Оператор 1';
-
-            if (!box || !barcode) {
-                showStatus("Заповніть Ящик та Скан-код!", "error");
+            if (!box || !product_code) {
+                showStatus("Заповніть Ящик та Код товару!", "error");
                 return;
             }
 
             const payload = { 
                 box_name: box, 
-                barcode: barcode, 
-                qty: qty, 
-                created_by: worker
+                product_code: product_code, 
+                qty: qty,
+                arrival_date: new Date().toISOString()
             };
 
             try {
-                const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_scans`, {
+                // Добавляем запись в таблицу inventory_boxes
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
                     method: 'POST',
                     headers: {
                         'apikey': SUPABASE_KEY,
@@ -186,11 +168,11 @@
                 });
 
                 if (response.ok) {
-                    showStatus(`Збережено! Ящик: ${box} | Штрихкод: ${barcode}`, "success");
-                    if (barcodeEl) barcodeEl.value = '';
-                    if (qtyEl) qtyEl.value = '1';
-                    if (barcodeEl) barcodeEl.focus();
-                    fetchScansData();
+                    showStatus(`Успішно! Ящик: ${box} | Код: ${product_code} | Кількість: ${qty}`, "success");
+                    document.getElementById('product_code').value = '';
+                    document.getElementById('qty').value = '1';
+                    document.getElementById('product_code').focus();
+                    fetchStockData();
                 } else {
                     const err = await response.text();
                     showStatus("Помилка Supabase: " + err, "error");
@@ -200,10 +182,10 @@
             }
         }
 
-        async function fetchScansData() {
+        async function fetchStockData() {
             try {
-                const response = await fetch(`${SUPABASE_URL}/rest/v1/view_dashboard_stock?select=*&order=created_at.desc&limit=200`, {
-                    method: 'get',
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*&order=arrival_date.desc`, {
+                    method: 'GET',
                     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }
                 });
 
@@ -216,105 +198,28 @@
         }
 
         function updateUI() {
-            const fullHistoryTbody = document.querySelector('#fullHistoryTable tbody');
-            if (fullHistoryTbody) {
-                fullHistoryTbody.innerHTML = '';
-                if (globalData.length === 0) {
-                    fullHistoryTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Поки немає записів</td></tr>';
-                } else {
-                    globalData.forEach(item => {
-                        let formattedDate = '';
-                        if (item.created_at) {
-                            const dt = new Date(item.created_at);
-                            const day = String(dt.getDate()).padStart(2, '0');
-                            const month = String(dt.getMonth() + 1).padStart(2, '0');
-                            const time = dt.toTimeString().substring(0, 5);
-                            formattedDate = `${day}.${month} ${time}`;
-                        }
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `<td>${formattedDate}</td><td><b>${item.box_name || ''}</b></td><td>${item.barcode || ''}</td><td><span class="total-badge">+${item.qty}</span></td>`;
-                        fullHistoryTbody.appendChild(tr);
-                    });
-                }
-            }
-
-            renderSummaryAndStock(globalData);
-        }
-
-        function renderSummaryAndStock(dataToRender) {
-            const boxItemMap = {};
-            const globalBarcodeTotals = {};
-
-            dataToRender.forEach(item => {
-                const box = item.box_name || 'Без ящика';
-                const barcode = item.barcode || 'Немає штрихкоду';
-                const q = parseInt(item.qty) || 1;
-
-                const boxKey = `${box}___${barcode}`;
-                if (!boxItemMap[boxKey]) {
-                    boxItemMap[boxKey] = { 
-                        box: box, 
-                        barcode: barcode, 
-                        boxQty: 0, 
-                        name: item.product_name, 
-                        product_code: item.product_code 
-                    };
-                }
-                boxItemMap[boxKey].boxQty += q;
-
-                if (!globalBarcodeTotals[barcode]) {
-                    globalBarcodeTotals[barcode] = 0;
-                }
-                globalBarcodeTotals[barcode] += q;
-            });
-
-            const listSummary = [];
-            const seenSummary = new Set();
-            dataToRender.forEach(item => {
-                const box = item.box_name || 'Без ящика';
-                const barcode = item.barcode || 'Немає штрихкоду';
-                const boxKey = `${box}___${barcode}`;
-                if (!seenSummary.has(boxKey)) {
-                    seenSummary.add(boxKey);
-                    listSummary.push(boxItemMap[boxKey]);
-                }
-            });
-
             const summaryTbody = document.querySelector('#summaryTable tbody');
             if (summaryTbody) {
                 summaryTbody.innerHTML = '';
-                if (listSummary.length === 0) {
+                if (globalData.length === 0) {
                     summaryTbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає даних</td></tr>';
                 } else {
-                    listSummary.forEach(rowData => {
+                    // Выводим последние 10 записей для быстрой сводки на главном экране
+                    globalData.slice(0, 10).forEach(item => {
                         const tr = document.createElement('tr');
-                        
-                        const isUnknown = rowData.product_code === 'БД_?';
-                        if (isUnknown) {
-                            tr.style.backgroundColor = '#fffdf0';
-                        }
-
                         tr.innerHTML = `
-                            <td>
-                                ${rowData.barcode} 
-                                <span class="total-badge" style="background: ${isUnknown ? '#f8d7da' : '#e8f0fe'}; color: ${isUnknown ? '#721c24' : '#1a73e8'}; font-size:11px; margin-left:4px;">${rowData.product_code}</span>
-                                <br><small style="color:${isUnknown ? '#c5221f' : '#666'}; font-weight:${isUnknown ? 'bold' : 'normal'};">${rowData.name || ''}</small>
-                            </td>
-                            <td><b>${rowData.box}</b></td>
-                            <td><span class="total-badge">${rowData.boxQty} шт.</span></td>
+                            <td><b>${item.product_code}</b></td>
+                            <td>${item.box_name}</td>
+                            <td><span class="total-badge">${item.qty} шт.</span></td>
                         `;
                         summaryTbody.appendChild(tr);
                     });
                 }
             }
-
-            const listStock = Object.values(boxItemMap);
-            listStock.sort((a, b) => a.box.localeCompare(b.box, undefined, { numeric: true }) || a.barcode.localeCompare(b.barcode));
-
-            renderStockTable(listStock, globalBarcodeTotals);
+            renderStockTable(globalData);
         }
 
-        function renderStockTable(list, globalTotals) {
+        function renderStockTable(list) {
             const stockTbody = document.querySelector('#stockTable tbody');
             if (!stockTbody) return;
             stockTbody.innerHTML = '';
@@ -323,68 +228,39 @@
                 return;
             }
 
-            list.forEach(rowData => {
-                const totalStockQty = globalTotals[rowData.barcode] || rowData.boxQty;
+            list.forEach(item => {
+                const dateStr = item.arrival_date ? new Date(item.arrival_date).toLocaleString('uk-UA') : '';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><b>${rowData.box}</b></td>
-                    <td>${rowData.barcode}</td>
-                    <td><span class="total-badge">${rowData.boxQty} шт.</span></td>
-                    <td><span class="global-badge">${totalStockQty} шт.</span></td>
+                    <td><b>${item.box_name}</b></td>
+                    <td>${item.product_code}</td>
+                    <td><span class="total-badge">${item.qty} шт.</span></td>
+                    <td><small>${dateStr}</small></td>
                 `;
                 stockTbody.appendChild(tr);
             });
         }
 
         function filterStock() {
-            const searchInput = document.getElementById('stockSearch');
-            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
-            
-            const boxItemMap = {};
-            const globalBarcodeTotals = {};
-
-            globalData.forEach(item => {
-                const box = item.box_name || 'Без ящика';
-                const barcode = item.barcode || 'Немає штрихкоду';
-                const q = parseInt(item.qty) || 1;
-
-                const boxKey = `${box}___${barcode}`;
-                if (!boxItemMap[boxKey]) {
-                    boxItemMap[boxKey] = { box: box, barcode: barcode, boxQty: 0 };
-                }
-                boxItemMap[boxKey].boxQty += q;
-
-                if (!globalBarcodeTotals[barcode]) globalBarcodeTotals[barcode] = 0;
-                globalBarcodeTotals[barcode] += q;
-            });
-
-            let listStock = Object.values(boxItemMap);
-
-            const filtered = listStock.filter(item => 
-                item.barcode.toLowerCase().includes(query) || item.box.toLowerCase().includes(query)
+            const query = document.getElementById('stockSearch').value.toLowerCase().trim();
+            const filtered = globalData.filter(item => 
+                item.product_code.toLowerCase().includes(query) || item.box_name.toLowerCase().includes(query)
             );
-
-            filtered.sort((a, b) => a.box.localeCompare(b.box, undefined, { numeric: true }) || a.barcode.localeCompare(b.barcode));
-            renderStockTable(filtered, globalBarcodeTotals);
-        }
-
-        function openHistoryModal() {
-            const modal = document.getElementById('historyModal');
-            if (modal) modal.style.display = 'block';
-            fetchScansData();
+            renderStockTable(filtered);
         }
 
         function openStockModal() {
-            const modal = document.getElementById('stockModal');
-            if (modal) modal.style.display = 'block';
-            const searchInput = document.getElementById('stockSearch');
-            if (searchInput) searchInput.value = '';
-            fetchScansData();
+            document.getElementById('stockModal').style.display = 'block';
+            document.getElementById('stockSearch').value = '';
+            fetchStockData();
+        }
+
+        function openHistoryModal() {
+            openStockModal(); // Используем модальное окно залишков для просмотра
         }
 
         function closeModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.style.display = 'none';
+            document.getElementById(modalId).style.display = 'none';
         }
 
         window.onclick = function(event) {
