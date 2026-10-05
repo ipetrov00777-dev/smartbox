@@ -40,6 +40,7 @@
         
         .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
         
+        /* Стили для общей кнопки добавления в корзинку */
         .global-cart-btn { margin-top: 15px; background: #28a745; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.2s; }
         .global-cart-btn:hover:not(:disabled) { background: #218838; cursor: pointer; }
         .global-cart-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
@@ -52,7 +53,7 @@
 
 <div class="container">
 
-    <!-- 1. ГОЛОВНЕ МЕНЮ -->
+    <!-- 1. ГЛАВНОЕ МЕНЮ -->
     <div id="menuScreen" class="screen active">
         <div class="header-bar">
             <h2>📌 Головне меню</h2>
@@ -106,6 +107,7 @@
                 </tbody>
             </table>
 
+            <!-- Общая кнопка добавления в корзинку -->
             <button id="globalCartBtn" class="global-cart-btn" disabled onclick="addAllToCart()">+ Додати все в корзинку</button>
         </div>
     </div>
@@ -151,7 +153,6 @@
     let globalStock = [];
     let globalProducts = [];
     let currentScannedMatches = [];
-    let originalStockMap = {}; // Сохраняем исходные значения остатков для каждого ящика
     let currentProductName = '';
     let currentProductCode = '';
 
@@ -218,14 +219,10 @@
         document.getElementById('resProductCode').innerText = currentProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        currentScannedMatches = matches.map(item => {
-            const qtyVal = parseInt(item.qty, 10) || 0;
-            originalStockMap[item.id] = qtyVal; // Запоминаем начальное значение
-            return {
-                ...item,
-                qty: qtyVal
-            };
-        });
+        currentScannedMatches = matches.map(item => ({
+            ...item,
+            originalQty: parseInt(item.qty, 10) || 0
+        }));
 
         resultCard.style.display = 'block';
         renderLocationsTable();
@@ -248,21 +245,17 @@
             const existingInput = document.getElementById(inputId);
             const currentInputValue = existingInput ? (parseInt(existingInput.value, 10) || 0) : 0;
             
-            const origQty = originalStockMap[item.id] !== undefined ? originalStockMap[item.id] : item.qty;
-            const remainder = origQty - currentInputValue;
-
-            // Отображение остатка в реальном времени (например: 12 шт. / 8)
-            let remainderHtml = `<span class="total-badge" id="availBadge_${idx}">${origQty} шт.</span>`;
-            if (currentInputValue > 0) {
-                remainderHtml += ` / <span style="color: #dc3545; font-weight: bold;">${remainder}</span>`;
-            }
+            const dynamicAvailable = item.originalQty - currentInputValue;
+            const stockDisplay = (currentInputValue > 0) 
+                ? `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
+                : `${item.originalQty} шт.`;
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td>${remainderHtml}</td>
+                <td><span class="total-badge" id="availBadge_${idx}">${stockDisplay}</span></td>
                 <td>
-                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${origQty}" oninput="handleQtyInput(${idx}, ${origQty})">
+                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${item.originalQty}" oninput="handleQtyInput(${idx}, ${item.originalQty})">
                 </td>
             `;
             tbody.appendChild(tr);
@@ -283,42 +276,40 @@
             input.value = maxVal;
         }
 
-        // Динамически обновляем отображение остатка в строке таблицы без перерисовки всей таблицы (чтобы фокус не сбивался)
-        const item = currentScannedMatches[idx];
-        const origQty = originalStockMap[item.id];
-        const remainder = origQty - val;
-        const badgeSpan = document.getElementById(`availBadge_${idx}`);
-        
-        if (badgeSpan) {
-            let html = `${origQty} шт.`;
-            if (val > 0) {
-                html += ` / <span style="color: #dc3545; font-weight: bold;">${remainder}</span>`;
-            }
-            badgeSpan.parentElement.innerHTML = html;
-        }
+        const dynamicAvailable = maxVal - val;
+        const stockDisplay = (val > 0) 
+            ? `${maxVal} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
+            : `${maxVal} шт.`;
+
+        document.getElementById(`availBadge_${idx}`).innerHTML = stockDisplay;
 
         updateSummaryTotals();
     }
 
     function updateSummaryTotals() {
-        let totalStock = 0;
+        let totalOriginalStock = 0;
         let totalReserved = 0;
         let hasAnyQty = false;
 
         currentScannedMatches.forEach((item, idx) => {
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
-            const origQty = originalStockMap[item.id] !== undefined ? originalStockMap[item.id] : item.qty;
-            totalStock += origQty;
             totalReserved += inputVal;
-
+            totalOriginalStock += item.originalQty;
             if (inputVal > 0) {
                 hasAnyQty = true;
             }
         });
 
-        document.getElementById('resTotalStock').innerText = `${totalStock} шт.`;
+        const totalRemaining = totalOriginalStock - totalReserved;
+
+        const totalStockDisplay = (totalReserved > 0)
+            ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`
+            : `${totalOriginalStock} шт.`;
+
+        document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
         document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
 
+        // Управляем общей кнопкой: активна только если введена хотя бы одна цифра > 0
         const globalBtn = document.getElementById('globalCartBtn');
         if (hasAnyQty) {
             globalBtn.removeAttribute('disabled');
@@ -336,19 +327,23 @@
             const qtyToReserve = parseInt(inputElement.value, 10) || 0;
 
             if (qtyToReserve > 0) {
-                cart.push({ 
-                    id: item.id, 
-                    box_name: item.box_name, 
-                    product_code: currentProductCode, 
-                    product_name: currentProductName, 
-                    qty: qtyToReserve 
-                });
+                const existing = cart.find(i => i.id === item.id);
+                if (existing) {
+                    existing.qty += qtyToReserve;
+                } else {
+                    cart.push({ 
+                        id: item.id, 
+                        box_name: item.box_name, 
+                        product_code: currentProductCode, 
+                        product_name: currentProductName, 
+                        qty: qtyToReserve 
+                    });
+                }
 
-                // Уменьшаем реальный остаток и обновляем сохраненный оригинал
-                item.qty -= qtyToReserve;
-                originalStockMap[item.id] = item.qty;
+                // Уменьшаем исходный остаток ящика
+                item.originalQty -= qtyToReserve;
+                // Сбрасываем поле ввода на 0
                 inputElement.value = 0;
-                inputElement.max = item.qty;
                 addedCount++;
             }
         });
@@ -386,17 +381,9 @@
     }
 
     function removeFromCart(index) {
-        const item = cart[index];
-        const stockItem = currentScannedMatches.find(i => i.id === item.id);
-        if (stockItem) {
-            stockItem.qty += item.qty;
-            originalStockMap[stockItem.id] = stockItem.qty; // Возвращаем количество в оригинал
-        }
-        
         cart.splice(index, 1);
         updateCartBadge();
         renderCart();
-        renderLocationsTable();
     }
 
     function completeCart() {
