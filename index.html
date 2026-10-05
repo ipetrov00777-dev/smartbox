@@ -40,9 +40,13 @@
         
         .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
         
-        .reserve-btn { background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-size: 13px; font-weight: bold; transition: background 0.2s; }
-        .reserve-btn:hover:not(:disabled) { background: #218838; cursor: pointer; }
-        .reserve-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+        /* Стили для общей кнопки добавления в корзинку */
+        .global-cart-btn { margin-top: 15px; background: #28a745; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.2s; }
+        .global-cart-btn:hover:not(:disabled) { background: #218838; cursor: pointer; }
+        .global-cart-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+        
+        .remove-row-btn { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
+        .remove-row-btn:hover { background: #c82333; }
     </style>
 </head>
 <body>
@@ -97,12 +101,14 @@
                         <th>Ящик</th>
                         <th>Наявність</th>
                         <th>К-сть</th>
-                        <th>Дія</th>
                     </tr>
                 </thead>
                 <tbody id="resLocationsBody">
                 </tbody>
             </table>
+
+            <!-- Общая кнопка добавления в корзинку -->
+            <button id="globalCartBtn" class="global-cart-btn" disabled onclick="addAllToCart()">+ Додати все в корзинку</button>
         </div>
     </div>
 
@@ -147,6 +153,8 @@
     let globalStock = [];
     let globalProducts = [];
     let currentScannedMatches = [];
+    let currentProductName = '';
+    let currentProductCode = '';
 
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -202,11 +210,13 @@
             (p.barcode && p.barcode.toLowerCase() === codeLower)
         );
 
-        const targetProductCode = prodInfo ? prodInfo.product_code : code;
-        const matches = globalStock.filter(item => item.product_code.toLowerCase() === targetProductCode.toLowerCase());
+        currentProductCode = prodInfo ? prodInfo.product_code : code;
+        currentProductName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
+        
+        const matches = globalStock.filter(item => item.product_code.toLowerCase() === currentProductCode.toLowerCase());
 
-        document.getElementById('resProductName').innerText = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
-        document.getElementById('resProductCode').innerText = targetProductCode;
+        document.getElementById('resProductName').innerText = currentProductName;
+        document.getElementById('resProductCode').innerText = currentProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
         currentScannedMatches = matches.map(item => ({
@@ -215,24 +225,23 @@
         }));
 
         resultCard.style.display = 'block';
-        renderLocationsTable(prodInfo ? prodInfo.product_name : '');
+        renderLocationsTable();
     }
 
-    function renderLocationsTable(productName) {
+    function renderLocationsTable() {
         const tbody = document.getElementById('resLocationsBody');
         tbody.innerHTML = '';
 
         if (currentScannedMatches.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
             document.getElementById('resTotalStock').innerText = `0 шт.`;
             document.getElementById('resTotalQty').innerText = `0 шт.`;
+            document.getElementById('globalCartBtn').setAttribute('disabled', 'true');
             return;
         }
 
         currentScannedMatches.forEach((item, idx) => {
             const inputId = `qtyInput_${idx}`;
-            const btnId = `cartBtn_${idx}`;
-            
             const existingInput = document.getElementById(inputId);
             const currentInputValue = existingInput ? (parseInt(existingInput.value, 10) || 0) : 0;
             
@@ -241,17 +250,12 @@
                 ? `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
                 : `${item.originalQty} шт.`;
 
-            const isBtnDisabled = currentInputValue <= 0;
-
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
                 <td><span class="total-badge" id="availBadge_${idx}">${stockDisplay}</span></td>
                 <td>
                     <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${item.originalQty}" oninput="handleQtyInput(${idx}, ${item.originalQty})">
-                </td>
-                <td>
-                    <button id="${btnId}" class="reserve-btn" ${isBtnDisabled ? 'disabled' : ''} onclick='addToCartFromTable(${idx}, "${item.id}", "${item.box_name}", "${item.product_code}", "${productName}")'>+ Корзинка</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -262,7 +266,6 @@
 
     function handleQtyInput(idx, maxVal) {
         const input = document.getElementById(`qtyInput_${idx}`);
-        const btn = document.getElementById(`cartBtn_${idx}`);
         let val = parseInt(input.value, 10);
 
         if (isNaN(val) || val < 0) {
@@ -271,12 +274,6 @@
         } else if (val > maxVal) {
             val = maxVal;
             input.value = maxVal;
-        }
-
-        if (val > 0) {
-            btn.removeAttribute('disabled');
-        } else {
-            btn.setAttribute('disabled', 'true');
         }
 
         const dynamicAvailable = maxVal - val;
@@ -292,11 +289,15 @@
     function updateSummaryTotals() {
         let totalOriginalStock = 0;
         let totalReserved = 0;
+        let hasAnyQty = false;
 
         currentScannedMatches.forEach((item, idx) => {
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
             totalReserved += inputVal;
             totalOriginalStock += item.originalQty;
+            if (inputVal > 0) {
+                hasAnyQty = true;
+            }
         });
 
         const totalRemaining = totalOriginalStock - totalReserved;
@@ -307,35 +308,51 @@
 
         document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
         document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
+
+        // Управляем общей кнопкой: активна только если введена хотя бы одна цифра > 0
+        const globalBtn = document.getElementById('globalCartBtn');
+        if (hasAnyQty) {
+            globalBtn.removeAttribute('disabled');
+        } else {
+            globalBtn.setAttribute('disabled', 'true');
+        }
     }
 
-    function addToCartFromTable(idx, id, box_name, product_code, product_name) {
-        const inputId = `qtyInput_${idx}`;
-        const inputElement = document.getElementById(inputId);
-        const qtyToReserve = parseInt(inputElement.value, 10) || 0;
+    function addAllToCart() {
+        let addedCount = 0;
 
-        if (qtyToReserve <= 0) {
-            alert("Вкажіть кількість більшу за 0!");
-            return;
+        currentScannedMatches.forEach((item, idx) => {
+            const inputId = `qtyInput_${idx}`;
+            const inputElement = document.getElementById(inputId);
+            const qtyToReserve = parseInt(inputElement.value, 10) || 0;
+
+            if (qtyToReserve > 0) {
+                const existing = cart.find(i => i.id === item.id);
+                if (existing) {
+                    existing.qty += qtyToReserve;
+                } else {
+                    cart.push({ 
+                        id: item.id, 
+                        box_name: item.box_name, 
+                        product_code: currentProductCode, 
+                        product_name: currentProductName, 
+                        qty: qtyToReserve 
+                    });
+                }
+
+                // Уменьшаем исходный остаток ящика
+                item.originalQty -= qtyToReserve;
+                // Сбрасываем поле ввода на 0
+                inputElement.value = 0;
+                addedCount++;
+            }
+        });
+
+        if (addedCount > 0) {
+            renderLocationsTable();
+            updateCartBadge();
+            alert("Вибрані товари успішно додано до корзинки!");
         }
-
-        const existing = cart.find(i => i.id === id);
-        if (existing) {
-            existing.qty += qtyToReserve;
-        } else {
-            cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
-        }
-
-        // Уменьшаем исходный остаток конкретного ящика на складе
-        currentScannedMatches[idx].originalQty -= qtyToReserve;
-
-        // СБРАСЫВАЕМ ИНПУТ НА 0 И ОБНОВЛЯЕМ СОСТОЯНИЕ КНОПКИ И ТАБЛИЦЫ
-        inputElement.value = 0;
-        
-        renderLocationsTable(product_name);
-        updateCartBadge();
-        
-        alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
     }
 
     function updateCartBadge() {
@@ -357,7 +374,7 @@
                 <td><b>${item.box_name}</b></td>
                 <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
-                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index})">✕</button></td>
+                <td><button class="remove-row-btn" onclick="removeFromCart(${index})">✕</button></td>
             `;
             tbody.appendChild(tr);
         });
