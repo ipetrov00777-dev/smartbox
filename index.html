@@ -65,7 +65,7 @@
         </div>
     </div>
 
-    <!-- 2. РАЗДЕЛ: ИНФОРМАЦИЯ / СКАНИРОВАНИЕ -->
+    <!-- 2. РАЗДЕЛ: ИНФОРМАЦИЯ / СКАНУВАННЯ -->
     <div id="infoSection" class="screen">
         <div class="header-bar">
             <h2>ℹ️ Сканування та залишки</h2>
@@ -84,7 +84,8 @@
                 <h3 id="resProductName">Назва товару</h3>
                 <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                 <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
-                <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge">0 шт.</span></p>
+                <p><b>Загальний залишок:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
+                <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
             </div>
 
             <p style="margin-bottom: 5px;"><b>Місця зберігання на складі:</b></p>
@@ -207,6 +208,10 @@
         document.getElementById('resProductName').innerText = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
+
+        // Считаем общий остаток на складе по всем ящикам для этого товара
+        const totalStock = matches.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+        document.getElementById('resTotalStock').innerText = `${totalStock} шт.`;
 
         resultCard.style.display = 'block';
 
