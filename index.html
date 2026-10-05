@@ -38,7 +38,7 @@
         th { background: #f1f3f4; }
         .total-badge { background: #e8f0fe; color: #1a73e8; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
         
-        .qty-input-table { width: 60px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
+        .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
         .reserve-btn { background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
         .reserve-btn:hover { background: #218838; }
     </style>
@@ -209,8 +209,8 @@
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        // Считаем общую сумму по всем найденным ящикам склада
-        const totalStockQty = matches.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+        // Общая наявность по всем ящикам
+        const totalStockQty = matches.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
         document.getElementById('resTotalStock').innerText = `${totalStockQty} шт.`;
 
         // Сбрасываем зарезервированное на 0
@@ -224,37 +224,49 @@
         }
 
         matches.forEach((item, idx) => {
+            const maxAvailable = parseInt(item.qty, 10) || 0;
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td><span class="total-badge">${item.qty} шт.</span></td>
+                <td><span class="total-badge">${maxAvailable} шт.</span></td>
                 <td>
-                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="0" min="0" max="${item.qty}" oninput="updateLiveReserved()">
+                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="0" min="0" max="${maxAvailable}" oninput="validateAndLimitInput(this, ${maxAvailable})">
                 </td>
                 <td>
-                    <button class="reserve-btn" onclick='addToCartFromTable("${item.id}", "${item.box_name}", "${targetProductCode}", "${prodInfo ? prodInfo.product_name : ''}", ${item.qty}, "qtyInput_${idx}")'>+ Корзинка</button>
+                    <button class="reserve-btn" onclick='addToCartFromTable("${item.id}", "${item.box_name}", "${targetProductCode}", "${prodInfo ? prodInfo.product_name : ''}", ${maxAvailable}, "qtyInput_${idx}")'>+ Корзинка</button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
 
-        // Считаем сразу при выводе (будет 0)
         updateLiveReserved();
     }
 
-    // Функция мгновенного подсчета суммы из полей ввода в таблице
+    // Функция для контроля ввода (чтобы не ввести больше, чем есть в ящике)
+    function validateAndLimitInput(input, maxVal) {
+        let val = parseInt(input.value, 10);
+        if (isNaN(val) || val < 0) {
+            input.value = 0;
+        } else if (val > maxVal) {
+            input.value = maxVal;
+        }
+        updateLiveReserved();
+    }
+
+    // Мгновенный подсчет суммы из полей ввода в таблице (строго через base 10 во избежание багов с нулями)
     function updateLiveReserved() {
         const inputs = document.querySelectorAll('.qty-input-table');
         let sum = 0;
         inputs.forEach(input => {
-            const val = parseInt(input.value) || 0;
+            const val = parseInt(input.value, 10) || 0;
             sum += val;
         });
         document.getElementById('resTotalQty').innerText = `${sum} шт.`;
     }
 
     function addToCartFromTable(id, box_name, product_code, product_name, maxQty, inputId) {
-        const qtyToReserve = parseInt(document.getElementById(inputId).value) || 0;
+        const inputElement = document.getElementById(inputId);
+        const qtyToReserve = parseInt(inputElement.value, 10) || 0;
 
         if (qtyToReserve <= 0) {
             alert("Вкажіть кількість більшу за 0!");
@@ -275,6 +287,10 @@
         } else {
             cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
         }
+
+        // Сбрасываем поле ввода обратно на 0 после добавления в корзину
+        inputElement.value = 0;
+        updateLiveReserved();
 
         updateCartBadge();
         alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
@@ -299,13 +315,13 @@
                 <td><b>${item.box_name}</b></td>
                 <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
-                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index}, '${item.product_code}')">✕</button></td>
+                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index})">✕</button></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    function removeFromCart(index, productCode) {
+    function removeFromCart(index) {
         cart.splice(index, 1);
         updateCartBadge();
         renderCart();
