@@ -1,4 +1,10 @@
-// Инициализация активного заказа и загрузка данных базы
+// Глобальні змінні стану програми
+let activeOrderId = null;
+let dbCartItems = [];
+let globalStock = [];
+let globalProducts = [];
+
+// Ініціалізація активного замовлення і завантаження даних бази
 async function ensureActiveOrder() {
     try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/orders?status=eq.draft&select=*&limit=1`, { headers: HEADERS });
@@ -49,7 +55,7 @@ function updateCartBadge() {
     if (badge) badge.innerText = totalCartItems;
 }
 
-// Навигация по экранам
+// Навігація по екранах
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
@@ -71,7 +77,7 @@ function showScreen(screenId) {
 function goToMenu() { showScreen('menuScreen'); }
 function openSection(sectionId) { showScreen(sectionId); }
 
-// Первичный запуск при загрузке страницы
+// Первинний запуск при завантаженні сторінки
 async function initSystem() {
     await ensureActiveOrder();
     await loadAllData();
