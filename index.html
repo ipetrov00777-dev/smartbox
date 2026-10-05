@@ -40,7 +40,6 @@
         
         .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
         
-        /* Стили для общей кнопки добавления в корзинку */
         .global-cart-btn { margin-top: 15px; background: #28a745; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.2s; }
         .global-cart-btn:hover:not(:disabled) { background: #218838; cursor: pointer; }
         .global-cart-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
@@ -53,7 +52,7 @@
 
 <div class="container">
 
-    <!-- 1. ГЛАВНОЕ МЕНЮ -->
+    <!-- 1. ГОЛОВНЕ МЕНЮ -->
     <div id="menuScreen" class="screen active">
         <div class="header-bar">
             <h2>📌 Головне меню</h2>
@@ -91,7 +90,7 @@
                 <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                 <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
                 <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
-                <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
+                <p><b>В роботі (в корзинці):</b> <span id="resCartQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
             </div>
 
             <p style="margin-bottom: 5px;"><b>Місця зберігання на складі:</b></p>
@@ -107,7 +106,6 @@
                 </tbody>
             </table>
 
-            <!-- Общая кнопка добавления в корзинку -->
             <button id="globalCartBtn" class="global-cart-btn" disabled onclick="addAllToCart()">+ Додати все в корзинку</button>
         </div>
     </div>
@@ -221,7 +219,7 @@
         
         currentScannedMatches = matches.map(item => ({
             ...item,
-            originalQty: parseInt(item.qty, 10) || 0
+            baseQty: parseInt(item.qty, 10) || 0 // Неизменный реальный остаток ящика из базы
         }));
 
         resultCard.style.display = 'block';
@@ -235,7 +233,7 @@
         if (currentScannedMatches.length === 0) {
             tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
             document.getElementById('resTotalStock').innerText = `0 шт.`;
-            document.getElementById('resTotalQty').innerText = `0 шт.`;
+            document.getElementById('resCartQty').innerText = `0 шт.`;
             document.getElementById('globalCartBtn').setAttribute('disabled', 'true');
             return;
         }
@@ -245,17 +243,27 @@
             const existingInput = document.getElementById(inputId);
             const currentInputValue = existingInput ? (parseInt(existingInput.value, 10) || 0) : 0;
             
-            const dynamicAvailable = item.originalQty - currentInputValue;
-            const stockDisplay = (currentInputValue > 0) 
-                ? `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
-                : `${item.originalQty} шт.`;
+            // Сколько уже этого товара из ЭТОГО ящика лежит в активной корзинке
+            const inCartForThisBox = cart
+                .filter(i => i.id === item.id)
+                .reduce((sum, i) => sum + i.qty, 0);
+
+            // Реально доступно для выбора = База минус то, что уже в корзинке минус то, что сейчас введено в инпут
+            const availableForAction = item.baseQty - inCartForThisBox;
+            const maxInputLimit = Math.max(0, availableForAction);
+
+            // Формируем красивый статус остатка
+            let stockDisplay = `${item.baseQty} шт.`;
+            if (inCartForThisBox > 0) {
+                stockDisplay = `${item.baseQty} шт. <span style="color: #2d6a4f; font-size: 12px;">(в корзинці: ${inCartForThisBox})</span>`;
+            }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
                 <td><span class="total-badge" id="availBadge_${idx}">${stockDisplay}</span></td>
                 <td>
-                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${item.originalQty}" oninput="handleQtyInput(${idx}, ${item.originalQty})">
+                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${maxInputLimit}" oninput="handleQtyInput(${idx}, ${maxInputLimit})">
                 </td>
             `;
             tbody.appendChild(tr);
@@ -276,40 +284,38 @@
             input.value = maxVal;
         }
 
-        const dynamicAvailable = maxVal - val;
-        const stockDisplay = (val > 0) 
-            ? `${maxVal} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
-            : `${maxVal} шт.`;
-
-        document.getElementById(`availBadge_${idx}`).innerHTML = stockDisplay;
-
         updateSummaryTotals();
     }
 
     function updateSummaryTotals() {
-        let totalOriginalStock = 0;
-        let totalReserved = 0;
+        let totalBaseStock = 0;
+        let totalInCart = 0;
+        let totalReservedNow = 0;
         let hasAnyQty = false;
 
         currentScannedMatches.forEach((item, idx) => {
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
-            totalReserved += inputVal;
-            totalOriginalStock += item.originalQty;
+            const inCartForThisBox = cart.filter(i => i.id === item.id).reduce((sum, i) => sum + i.qty, 0);
+            
+            totalBaseStock += item.baseQty;
+            totalInCart += inCartForThisBox;
+            totalReservedNow += inputVal;
+
             if (inputVal > 0) {
                 hasAnyQty = true;
             }
         });
 
-        const totalRemaining = totalOriginalStock - totalReserved;
-
-        const totalStockDisplay = (totalReserved > 0)
-            ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`
-            : `${totalOriginalStock} шт.`;
+        // Общая строка наявности: база / если что-то в корзинке или вводится, показываем остаток
+        let totalStockDisplay = `${totalBaseStock} шт.`;
+        if (totalInCart > 0 || totalReservedNow > 0) {
+            const remaining = totalBaseStock - totalInCart - totalReservedNow;
+            totalStockDisplay = `${totalBaseStock} шт. / <span style="color: #d93025; font-weight: bold;">${remaining}</span>`;
+        }
 
         document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
-        document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
+        document.getElementById('resCartQty').innerText = `${totalInCart + totalReservedNow} шт.`;
 
-        // Управляем общей кнопкой: активна только если введена хотя бы одна цифра > 0
         const globalBtn = document.getElementById('globalCartBtn');
         if (hasAnyQty) {
             globalBtn.removeAttribute('disabled');
@@ -340,9 +346,7 @@
                     });
                 }
 
-                // Уменьшаем исходный остаток ящика
-                item.originalQty -= qtyToReserve;
-                // Сбрасываем поле ввода на 0
+                // Сбрасываем поле ввода на 0, а базовый склад НЕ трогаем (его учтет корзинка)
                 inputElement.value = 0;
                 addedCount++;
             }
