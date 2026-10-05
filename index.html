@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox - Складський облік</title>
+    <title>SmartBox - Складський облік (DB Sync)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -147,12 +147,27 @@
     const SUPABASE_URL = "https://hjsdayynmmzajerjgqrb.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2RheXlubW16YWplcmpncXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY4MTEsImV4cCI6MjEwMTkzMjgxMX0.4lMQf7lpymLCEAA4OJCUwGUda1nKfoxduADDbaWGo0w";
 
-    let cart = [];
+    const HEADERS = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+    };
+
+    let activeOrderId = null;
+    let dbCartItems = [];
     let globalStock = [];
     let globalProducts = [];
     let currentScannedMatches = [];
     let currentProductName = '';
     let currentProductCode = '';
+
+    // При старте загружаем или создаем активность
+    async function initSystem() {
+        await ensureActiveOrder();
+        await loadAllData();
+        updateCartBadge();
+    }
 
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -160,7 +175,11 @@
         window.scrollTo(0, 0);
         
         if (screenId === 'infoSection') {
-            loadAllData();
+            loadAllData().then(() => {
+                if (currentProductCode) {
+                    renderLocationsTable();
+                }
+            });
             setTimeout(() => document.getElementById('scanInput').focus(), 100);
         }
         if (screenId === 'cartSection') {
@@ -171,15 +190,46 @@
     function goToMenu() { showScreen('menuScreen'); }
     function openSection(sectionId) { showScreen(sectionId); }
 
+    // Получаем или создаем черновик задания в БД
+    async function ensureActiveOrder() {
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/orders?status=eq.draft&select=*&limit=1`, { headers: HEADERS });
+            const orders = await res.json();
+
+            if (orders && orders.length > 0) {
+                activeOrderId = orders[0].id;
+            } else {
+                const newOrderRes = await fetch(`${SUPABASE_URL}/rest/v1/orders`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({
+                        order_number: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
+                        status: 'draft'
+                    })
+                });
+                const newOrders = await newOrderRes.json();
+                if (newOrders && newOrders.length > 0) {
+                    activeOrderId = newOrders[0].id;
+                }
+            }
+        } catch (e) {
+            console.error("Помилка ініціалізації замовлення", e);
+        }
+    }
+
     async function loadAllData() {
         try {
-            const [stockRes, prodRes] = await Promise.all([
-                fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }),
-                fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } })
+            const [stockRes, prodRes, cartRes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: HEADERS }),
+                activeOrderId ? fetch(`${SUPABASE_URL}/rest/v1/order_items?order_id=eq.${activeOrderId}&select=*`, { headers: HEADERS }) : Promise.resolve({ ok: false })
             ]);
             
             if (stockRes.ok) globalStock = await stockRes.json();
             if (prodRes.ok) globalProducts = await prodRes.json();
+            if (cartRes.ok) dbCartItems = await cartRes.json();
+
+            updateCartBadge();
         } catch (e) {
             console.error("Помилка завантаження даних", e);
         }
@@ -241,14 +291,12 @@
         currentScannedMatches.forEach((item, idx) => {
             const inputId = `qtyInput_${idx}`;
             
-            // Сколько этого товара уже лежит в корзинке для данного ящика
-            const cartItem = cart.find(c => c.id === item.id);
-            const inCartQty = cartItem ? cartItem.qty : 0;
+            // Получаем общее количество резерва из базы по этому ящику
+            const cartItems = dbCartItems.filter(c => c.box_name === item.box_name && c.product_code.toLowerCase() === currentProductCode.toLowerCase());
+            const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
             
-            // Доступно для нового ввода = Исходное количество минус то, что уже в корзине
             const availableForInput = item.originalQty - inCartQty;
 
-            // Формируем правильный вид ячейки наличия (например: "8 шт. / 6")
             let stockHtml = `${item.originalQty} шт.`;
             if (inCartQty > 0) {
                 const remainder = item.originalQty - inCartQty;
@@ -281,7 +329,6 @@
             input.value = maxVal;
         }
 
-        // Динамический пересчет остатка в строке при вводе
         const totalWithCurrentInput = inCartQty + val;
         let stockHtml = `${originalQty} шт.`;
         if (totalWithCurrentInput > 0) {
@@ -300,8 +347,9 @@
         let hasAnyQty = false;
 
         currentScannedMatches.forEach((item, idx) => {
-            const cartItem = cart.find(c => c.id === item.id);
-            const inCartQty = cartItem ? cartItem.qty : 0;
+            const cartItems = dbCartItems.filter(c => c.box_name === item.box_name && c.product_code.toLowerCase() === currentProductCode.toLowerCase());
+            const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
+            
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
 
             totalOriginalStock += item.originalQty;
@@ -316,7 +364,6 @@
         const totalReservedNow = totalAlreadyInCart + totalCurrentInput;
         const totalRemaining = totalOriginalStock - totalReservedNow;
 
-        // Общий остаток сверху (например: "20 шт. / 10")
         const totalStockDisplay = (totalReservedNow > 0)
             ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`
             : `${totalOriginalStock} шт.`;
@@ -332,8 +379,10 @@
         }
     }
 
-    function addAllToCart() {
-        let addedCount = 0;
+    async function addAllToCart() {
+        if (!activeOrderId) await ensureActiveOrder();
+
+        const insertPromises = [];
 
         currentScannedMatches.forEach((item, idx) => {
             const inputId = `qtyInput_${idx}`;
@@ -341,70 +390,90 @@
             const qtyToReserve = parseInt(inputElement.value, 10) || 0;
 
             if (qtyToReserve > 0) {
-                const existing = cart.find(i => i.id === item.id);
-                if (existing) {
-                    existing.qty += qtyToReserve;
-                } else {
-                    cart.push({ 
-                        id: item.id, 
-                        box_name: item.box_name, 
-                        product_code: currentProductCode, 
-                        product_name: currentProductName, 
-                        qty: qtyToReserve 
-                    });
-                }
-                addedCount++;
+                // Записываем резерв в базу данных Supabase
+                const p = fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({
+                        order_id: activeOrderId,
+                        box_name: item.box_name,
+                        product_code: currentProductCode,
+                        product_name: currentProductName,
+                        qty_reserved: qtyToReserve
+                    })
+                });
+                insertPromises.push(p);
             }
         });
 
-        if (addedCount > 0) {
-            renderLocationsTable(); // Перерисовываем таблицу: инпуты сбрасываются в 0, а история продолжается дальше
-            updateCartBadge();
-            alert("Вибрані товари успішно додано до корзинки!");
+        if (insertPromises.length > 0) {
+            await Promise.all(insertPromises);
+            await loadAllData(); // Загружаем свежие данные из БД
+            renderLocationsTable();
+            alert("Вибрані товари успішно збережено в Supabase!");
         }
     }
 
     function updateCartBadge() {
-        const totalCartItems = cart.reduce((sum, i) => sum + i.qty, 0);
+        const totalCartItems = dbCartItems.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
         document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
-    function renderCart() {
+    async function renderCart() {
+        await loadAllData();
         const tbody = document.getElementById('cartTableBody');
         tbody.innerHTML = '';
-        if (cart.length === 0) {
+
+        if (dbCartItems.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
             return;
         }
 
-        cart.forEach((item, index) => {
+        dbCartItems.forEach((item) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
                 <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
-                <td><span class="total-badge">${item.qty} шт.</span></td>
-                <td><button class="remove-row-btn" onclick="removeFromCart(${index})">✕</button></td>
+                <td><span class="total-badge">${item.qty_reserved} шт.</span></td>
+                <td><button class="remove-row-btn" onclick="removeFromCart('${item.id}')">✕</button></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    function removeFromCart(index) {
-        cart.splice(index, 1);
-        updateCartBadge();
+    async function removeFromCart(itemId) {
+        await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, {
+            method: 'DELETE',
+            headers: HEADERS
+        });
+        await loadAllData();
         renderCart();
     }
 
-    function completeCart() {
-        if (cart.length === 0) {
+    async function completeCart() {
+        if (dbCartItems.length === 0) {
             alert("Корзинка порожня!");
             return;
         }
-        alert("Завдання успішно передано для виносу в зал!");
-        cart = [];
-        updateCartBadge();
+
+        // Переводим статус в 'completed'
+        await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${activeOrderId}`, {
+            method: 'PATCH',
+            headers: HEADERS,
+            body: JSON.stringify({ status: 'completed' })
+        });
+
+        alert("Завдання успішно виконано та збережено в базу!");
+        
+        // Пересоздаем новый рабочий черновик
+        activeOrderId = null;
+        await ensureActiveOrder();
+        await loadAllData();
         goToMenu();
     }
+
+    // Старт
+    initSystem();
 </script>
 
 </body>
