@@ -219,7 +219,7 @@
         
         currentScannedMatches = matches.map(item => ({
             ...item,
-            baseQty: parseInt(item.qty, 10) || 0 // Изначальный неизменный остаток из базы
+            qty: parseInt(item.qty, 10) || 0
         }));
 
         resultCard.style.display = 'block';
@@ -243,28 +243,12 @@
             const existingInput = document.getElementById(inputId);
             const currentInputValue = existingInput ? (parseInt(existingInput.value, 10) || 0) : 0;
             
-            // Сколько уже этого товара из ЭТОГО ящика лежит в активной корзинке
-            const inCartForThisBox = cart
-                .filter(i => i.id === item.id)
-                .reduce((sum, i) => sum + i.qty, 0);
-
-            // Доступно для нового ввода в инпут = База минус то, что уже в корзинке
-            const availableForAction = item.baseQty - inCartForThisBox;
-            const maxInputLimit = Math.max(0, availableForAction);
-
-            // Формируем отображение по вашему шаблону: 8 (-3_Кор) = 5 шт. (или просто 8 если ничего не зарезервировано)
-            let stockDisplay = `${item.baseQty} шт.`;
-            if (inCartForThisBox > 0) {
-                const allowedNow = availableForAction;
-                stockDisplay = `${item.baseQty} <span style="color: #d93025;">(-${inCartForThisBox}_Кор)</span> = <b style="color: #2d6a4f;">${allowedNow} шт.</b>`;
-            }
-
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td><span class="total-badge" id="availBadge_${idx}">${stockDisplay}</span></td>
+                <td><span class="total-badge" id="availBadge_${idx}">${item.qty} шт.</span></td>
                 <td>
-                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${maxInputLimit}" oninput="handleQtyInput(${idx}, ${maxInputLimit})">
+                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${item.qty}" oninput="handleQtyInput(${idx}, ${item.qty})">
                 </td>
             `;
             tbody.appendChild(tr);
@@ -289,33 +273,22 @@
     }
 
     function updateSummaryTotals() {
-        let totalBaseStock = 0;
-        let totalInCart = 0;
-        let totalReservedNow = 0;
+        let totalStock = 0;
+        let totalReserved = 0;
         let hasAnyQty = false;
 
         currentScannedMatches.forEach((item, idx) => {
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
-            const inCartForThisBox = cart.filter(i => i.id === item.id).reduce((sum, i) => sum + i.qty, 0);
-            
-            totalBaseStock += item.baseQty;
-            totalInCart += inCartForThisBox;
-            totalReservedNow += inputVal;
+            totalStock += item.qty;
+            totalReserved += inputVal;
 
             if (inputVal > 0) {
                 hasAnyQty = true;
             }
         });
 
-        const totalRemaining = totalBaseStock - totalInCart - totalReservedNow;
-
-        let totalStockDisplay = `${totalBaseStock} шт.`;
-        if (totalInCart > 0 || totalReservedNow > 0) {
-            totalStockDisplay = `${totalBaseStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`;
-        }
-
-        document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
-        document.getElementById('resTotalQty').innerText = `${totalInCart + totalReservedNow} шт.`;
+        document.getElementById('resTotalStock').innerText = `${totalStock} шт.`;
+        document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
 
         const globalBtn = document.getElementById('globalCartBtn');
         if (hasAnyQty) {
@@ -334,20 +307,15 @@
             const qtyToReserve = parseInt(inputElement.value, 10) || 0;
 
             if (qtyToReserve > 0) {
-                const existing = cart.find(i => i.id === item.id);
-                if (existing) {
-                    existing.qty += qtyToReserve;
-                } else {
-                    cart.push({ 
-                        id: item.id, 
-                        box_name: item.box_name, 
-                        product_code: currentProductCode, 
-                        product_name: currentProductName, 
-                        qty: qtyToReserve 
-                    });
-                }
+                cart.push({ 
+                    id: item.id, 
+                    box_name: item.box_name, 
+                    product_code: currentProductCode, 
+                    product_name: currentProductName, 
+                    qty: qtyToReserve 
+                });
 
-                // Сбрасываем инпут на 0, база ящика не меняется (ее учитывает корзинка)
+                item.qty -= qtyToReserve;
                 inputElement.value = 0;
                 addedCount++;
             }
@@ -386,9 +354,16 @@
     }
 
     function removeFromCart(index) {
+        const item = cart[index];
+        const stockItem = currentScannedMatches.find(i => i.id === item.id);
+        if (stockItem) {
+            stockItem.qty += item.qty;
+        }
+        
         cart.splice(index, 1);
         updateCartBadge();
         renderCart();
+        renderLocationsTable();
     }
 
     function completeCart() {
