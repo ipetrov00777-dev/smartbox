@@ -40,7 +40,6 @@
         
         .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
         
-        /* Стили для активной и неактивной кнопок */
         .reserve-btn { background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-size: 13px; font-weight: bold; transition: background 0.2s; }
         .reserve-btn:hover:not(:disabled) { background: #218838; cursor: pointer; }
         .reserve-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
@@ -242,7 +241,6 @@
                 ? `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
                 : `${item.originalQty} шт.`;
 
-            // Кнопка активна только если введенное число больше 0
             const isBtnDisabled = currentInputValue <= 0;
 
             const tr = document.createElement('tr');
@@ -275,7 +273,6 @@
             input.value = maxVal;
         }
 
-        // Динамически активируем или деактивируем кнопку в реальном времени при вводе
         if (val > 0) {
             btn.removeAttribute('disabled');
         } else {
@@ -332,12 +329,12 @@
         // Уменьшаем исходный остаток конкретного ящика на складе
         currentScannedMatches[idx].originalQty -= qtyToReserve;
 
-        // Сбрасываем инпут на 0
+        // СБРАСЫВАЕМ ИНПУТ НА 0 И ОБНОВЛЯЕМ СОСТОЯНИЕ КНОПКИ И ТАБЛИЦЫ
         inputElement.value = 0;
-
-        // Обновляем таблицу и отключаем кнопку (делаем её светлой)
+        
         renderLocationsTable(product_name);
         updateCartBadge();
+        
         alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
     }
 
