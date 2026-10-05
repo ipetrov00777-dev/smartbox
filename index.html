@@ -144,7 +144,7 @@
     let cart = [];
     let globalStock = [];
     let globalProducts = [];
-    let currentScannedMatches = []; // Активные данные по текущему сканированию
+    let currentScannedMatches = [];
 
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -207,7 +207,6 @@
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        // Клонируем данные по ящикам, чтобы динамически менять остатки на экране
         currentScannedMatches = matches.map(item => ({
             ...item,
             originalQty: parseInt(item.qty, 10) || 0
@@ -233,10 +232,15 @@
             const currentInputValue = parseInt(document.getElementById(inputId)?.value, 10) || 0;
             const dynamicAvailable = item.originalQty - currentInputValue;
 
+            // Формат через слеш: Исходное / Оставшееся
+            const stockDisplay = (currentInputValue > 0) 
+                ? `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
+                : `${item.originalQty} шт.`;
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td><span class="total-badge" id="availBadge_${idx}">${dynamicAvailable} шт.</span></td>
+                <td><span class="total-badge" id="availBadge_${idx}">${stockDisplay}</span></td>
                 <td>
                     <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${item.originalQty}" oninput="handleQtyInput(${idx}, ${item.originalQty})">
                 </td>
@@ -250,7 +254,6 @@
         updateSummaryTotals();
     }
 
-    // Обработка ввода в поле К-сть (динамическое уменьшение отображаемого остатка)
     function handleQtyInput(idx, maxVal) {
         const input = document.getElementById(`qtyInput_${idx}`);
         let val = parseInt(input.value, 10);
@@ -263,25 +266,34 @@
             input.value = maxVal;
         }
 
-        // Пересчитываем остаток в конкретной строке ящика
         const dynamicAvailable = maxVal - val;
-        document.getElementById(`availBadge_${idx}`).innerText = `${dynamicAvailable} шт.`;
+        const stockDisplay = (val > 0) 
+            ? `${maxVal} шт. / <span style="color: #d93025; font-weight: bold;">${dynamicAvailable}</span>` 
+            : `${maxVal} шт.`;
+
+        document.getElementById(`availBadge_${idx}`).innerHTML = stockDisplay;
 
         updateSummaryTotals();
     }
 
-    // Подсчет общих сумм сверху карточки
     function updateSummaryTotals() {
-        let totalStockLeft = 0;
+        let totalOriginalStock = 0;
         let totalReserved = 0;
 
         currentScannedMatches.forEach((item, idx) => {
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
             totalReserved += inputVal;
-            totalStockLeft += (item.originalQty - inputVal);
+            totalOriginalStock += item.originalQty;
         });
 
-        document.getElementById('resTotalStock').innerText = `${totalStockLeft} шт.`;
+        const totalRemaining = totalOriginalStock - totalReserved;
+
+        // Формат через слеш для общей наявности сверху
+        const totalStockDisplay = (totalReserved > 0)
+            ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`
+            : `${totalOriginalStock} шт.`;
+
+        document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
         document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
     }
 
@@ -289,7 +301,6 @@
         const inputId = `qtyInput_${idx}`;
         const inputElement = document.getElementById(inputId);
         const qtyToReserve = parseInt(inputElement.value, 10) || 0;
-        const maxQty = currentScannedMatches[idx].originalQty;
 
         if (qtyToReserve <= 0) {
             alert("Вкажіть кількість більшу за 0!");
@@ -303,15 +314,13 @@
             cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
         }
 
-        // Снижаем оригинальный доступный остаток ящика на складе (имитация ухода в корзину)
+        // Уменьшаем исходный остаток ящика на складе при уходе в корзину
         currentScannedMatches[idx].originalQty -= qtyToReserve;
 
-        // Сбрасываем поле ввода обратно на 0
+        // Сбрасываем поле ввода на 0
         inputElement.value = 0;
 
-        // Перерисовываем таблицу с новыми остатками
         renderLocationsTable(product_name);
-
         updateCartBadge();
         alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
     }
