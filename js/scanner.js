@@ -20,6 +20,24 @@ function setScanMode(mode) {
     if (input) input.focus();
 }
 
+// Звуковой сигнал сканера (Beep)
+function playBeep() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 800;
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.1);
+    } catch (e) {
+        // Игнорируем блокировку браузера до первого взаимодействия
+    }
+}
+
 // Головний обробник сканування на складі (FIFO / Збірка)
 async function handleMainScan(e) {
     if (e.key === 'Enter') {
@@ -27,65 +45,77 @@ async function handleMainScan(e) {
         e.target.value = '';
         if (!val) return;
 
+        playBeep(); // Звуковий сигнал при скануванні
+
         if (currentScanMode === 'box') {
-            // Перевірка існування коробки в стоці
-            const boxFound = globalStock.find(s => s.box_code === val || s.box_id === val);
-            if (boxFound) {
-                scannedBoxCode = val;
-                const boxDisplay = document.getElementById('currentBoxDisplay');
-                if (boxDisplay) boxDisplay.innerText = `Коробка: ${val}`;
-                alert(`Коробку ${val} успішно вибрано! Тепер скануйте товар.`);
-                setScanMode('item');
-            } else {
-                alert('Коробку не знайдено в базі!');
+            scannedBoxCode = val;
+            const boxInfoLabel = document.getElementById('scannedBoxInfo');
+            if (boxInfoLabel) {
+                boxInfoLabel.innerText = `Обрана коробка/полиця: ${val}`;
+                boxInfoLabel.style.color = '#1a73e8';
             }
+            // Автоматично перемикаємо на режим сканування товару після коробки
+            setScanMode('item');
         } else {
-            // Режим сканування товару з FIFO
+            // Режим сканування товару (FIFO)
+            const productCode = val;
             if (!scannedBoxCode) {
-                alert('Спочатку скануйте коробку!');
+                alert("Спершу відскануйте коробку або полицю!");
                 setScanMode('box');
                 return;
             }
 
-            const prod = globalProducts.find(p => p.barcode === val || p.product_code === val);
-            if (!prod) {
-                alert('Товар не знайдено за штрих-кодом!');
-                return;
-            }
-
-            // Додаємо позицію в замовлення через API (з прив'язкою до product_code)
-            try {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
-                    method: 'POST',
-                    headers: HEADERS,
-                    body: JSON.stringify({
-                        order_id: activeOrderId,
-                        product_code: prod.product_code,
-                        box_code: scannedBoxCode,
-                        qty_reserved: 1
-                    })
-                });
-
-                if (res.ok) {
-                    await loadAllData();
-                    alert(`Товар ${prod.name_ua || prod.name} додано до замовлення (FIFO)`);
-                } else {
-                    alert('Помилка збереження товару');
-                }
-            } else (err) {
-                // виправлено синтаксис catch нижче
-            }
-        } catch (err) {
-            console.error("Помилка FIFO сканування", err);
+            // Додаємо товар у поточну коробку за правилами FIFO
+            await addItemToBoxFifo(scannedBoxCode, productCode);
         }
     }
 }
 
-// Автоматична прив'язка обробника подій при завантаженні сторінки
-document.addEventListener('DOMContentLoaded', () => {
-    const scanInput = document.getElementById('mainScanInput');
-    if (scanInput) {
-        scanInput.addEventListener('keydown', handleMainScan);
-        scanInput.focus();
+async function addItemToBoxFifo(boxCode, productCode) {
+    try {
+        // Перевіряємо наявність товару в базі через глобальні масиви або API
+        const prodInfo = globalProducts.find(p => 
+            (p.product_code && p.product_code.toLowerCase() === productCode.toLowerCase()) || 
+            (p.barcode && p.barcode.toLowerCase() === productCode.toLowerCase())
+        );
+
+        const realProductCode = prodInfo ? prodInfo.product_code : productCode;
+        const realProductName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
+
+        if (!activeOrderId) {
+            await ensureActiveOrder();
+        }
+
+        // Зберігаємо рядок в Supabase (order_items)
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+                order_id: activeOrderId,
+                box_name: boxCode,
+                product_code: realProductCode,
+                product_name: realProductName,
+                qty_reserved: 1
+            })
+        });
+
+        if (res.ok) {
+            await loadAllData();
+            updateCartBadge();
+            
+            const infoBox = document.getElementById('lastScannedResult');
+            if (infoBox) {
+                infoBox.innerHTML = `Успішно додано: <b>${realProductName}</b> (Код: ${realProductCode}) у ящик <b>${boxCode}</b>`;
+                infoBox.style.background = '#e2f0cb';
+            }
+        } else {
+            alert("Помилка збереження товару в базу даних.");
+        }
+    } catch (err) {
+        console.error("Помилка FIFO сканування:", err);
+    } finally {
+        // Повертаємо фокус для наступного сканування
+        const input = document.getElementById('mainScanInput');
+        if (input) input.focus();
     }
-});
+}
