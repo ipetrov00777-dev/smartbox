@@ -54,7 +54,7 @@
             <button class="back-btn" onclick="alert('Сесія завершена')">Вихід</button>
         </div>
         <div class="menu-grid">
-            <button class="menu-btn" onclick="openSection('infoSection')">ℹ️ Інформація</button>
+            <button class="menu-btn" onclick="openSection('infoSection')">ℹ Інформація</button>
             <button class="menu-btn" onclick="openSection('podsortSection')">🔄 Підсорт</button>
             <button class="menu-btn" onclick="openSection('shelfSection')">📍 ШТ. на полке</button>
             <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
@@ -213,7 +213,7 @@
         const totalStockQty = matches.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
         document.getElementById('resTotalStock').innerText = `${totalStockQty} шт.`;
 
-        // Сбрасываем поле зарезервированного при новом сканировании
+        // Сбрасываем зарезервированное на 0
         document.getElementById('resTotalQty').innerText = `0 шт.`;
 
         resultCard.style.display = 'block';
@@ -229,7 +229,7 @@
                 <td><b>${item.box_name}</b></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
                 <td>
-                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="1" min="1" max="${item.qty}" oninput="updateLiveReserved()">
+                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="0" min="0" max="${item.qty}" oninput="updateLiveReserved()">
                 </td>
                 <td>
                     <button class="reserve-btn" onclick='addToCartFromTable("${item.id}", "${item.box_name}", "${targetProductCode}", "${prodInfo ? prodInfo.product_name : ''}", ${item.qty}, "qtyInput_${idx}")'>+ Корзинка</button>
@@ -238,7 +238,7 @@
             tbody.appendChild(tr);
         });
 
-        // Считаем сразу при выводе
+        // Считаем сразу при выводе (будет 0)
         updateLiveReserved();
     }
 
@@ -254,10 +254,10 @@
     }
 
     function addToCartFromTable(id, box_name, product_code, product_name, maxQty, inputId) {
-        const qtyToReserve = parseInt(document.getElementById(inputId).value) || 1;
+        const qtyToReserve = parseInt(document.getElementById(inputId).value) || 0;
 
         if (qtyToReserve <= 0) {
-            alert("Вкажіть коректну кількість!");
+            alert("Вкажіть кількість більшу за 0!");
             return;
         }
         if (qtyToReserve > maxQty) {
