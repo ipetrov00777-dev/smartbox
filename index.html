@@ -15,7 +15,6 @@
         .back-btn { background: #5f6368; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; }
         .back-btn:hover { background: #3c4043; }
 
-        /* Главное меню */
         .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
         .menu-btn { background: #fff; border: 2px solid #1a73e8; color: #1a73e8; padding: 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; position: relative; }
         .menu-btn:hover { background: #1a73e8; color: #fff; }
@@ -29,14 +28,19 @@
         label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
         input, select { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #1a73e8; border-radius: 6px; font-size: 18px; outline: none; }
         button.action-btn { background: #1a73e8; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; cursor: pointer; }
-        button.action-btn:hover { background: #1557b0; }
         
+        /* Карточка товара */
+        .product-info-box { background: #e8f0fe; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #1a73e8; }
+        .product-info-box h3 { margin: 0 0 8px 0; color: #1a73e8; font-size: 18px; }
+        .product-info-box p { margin: 4px 0; font-size: 14px; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
         th { background: #f1f3f4; }
         .total-badge { background: #e8f0fe; color: #1a73e8; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
         
-        .reserve-btn { background: #28a745; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .qty-input-table { width: 60px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
+        .reserve-btn { background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
         .reserve-btn:hover { background: #218838; }
     </style>
 </head>
@@ -77,13 +81,21 @@
         </div>
 
         <div id="productResultCard" class="card" style="display: none;">
-            <h3 id="resProductTitle" style="color: #1a73e8; margin-top: 0;">Код: ---</h3>
-            <p><b>Знайдені місця зберігання на складі:</b></p>
+            <!-- Вся информация о товаре -->
+            <div class="product-info-box">
+                <h3 id="resProductName">Назва товару</h3>
+                <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
+                <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
+                <p><b>Загальний залишок:</b> <span id="resTotalQty" class="total-badge">0 шт.</span></p>
+            </div>
+
+            <p style="margin-bottom: 5px;"><b>Місця зберігання на складі:</b></p>
             <table>
                 <thead>
                     <tr>
                         <th>Ящик</th>
-                        <th>Кількість</th>
+                        <th>Наявність</th>
+                        <th>К-сть</th>
                         <th>Дія</th>
                     </tr>
                 </thead>
@@ -105,9 +117,9 @@
                 <thead>
                     <tr>
                         <th>Ящик</th>
-                        <th>Код товару</th>
-                        <th>Кількість</th>
-                        <th>Видалити</th>
+                        <th>Код / Назва</th>
+                        <th>К-сть</th>
+                        <th>Дія</th>
                     </tr>
                 </thead>
                 <tbody id="cartTableBody">
@@ -118,20 +130,11 @@
         </div>
     </div>
 
-    <!-- Заглушки для остальных разделов -->
+    <!-- Заглушки -->
     <div id="podsortSection" class="screen"><div class="header-bar"><h2>🔄 Підсорт</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
     <div id="shelfSection" class="screen"><div class="header-bar"><h2>📍 ШТ. на полке</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
     <div id="photoSection" class="screen"><div class="header-bar"><h2>📷 Фото</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
-    <div id="arrivalSection" class="screen">
-        <div class="header-bar"><h2>📥 Приход</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div>
-        <div class="card">
-            <div class="form-group"><label>Ящик / Полиця:</label><input type="text" id="arrBox" placeholder="Box-10"></div>
-            <div class="form-group"><label>Код товару:</label><input type="text" id="arrCode" placeholder="PRD-101"></div>
-            <div class="form-group"><label>Кількість:</label><input type="number" id="arrQty" value="1" min="1"></div>
-            <button class="action-btn" onclick="sendArrival()">Зберегти приход</button>
-            <div id="arrStatus" style="margin-top:10px; font-weight:bold; text-align:center;"></div>
-        </div>
-    </div>
+    <div id="arrivalSection" class="screen"><div class="header-bar"><h2>📥 Приход</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
 
 </div>
 
@@ -141,6 +144,7 @@
 
     let cart = [];
     let globalStock = [];
+    let globalProducts = [];
 
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -148,7 +152,7 @@
         window.scrollTo(0, 0);
         
         if (screenId === 'infoSection') {
-            fetchStockDataForScan();
+            loadAllData();
             setTimeout(() => document.getElementById('scanInput').focus(), 100);
         }
         if (screenId === 'cartSection') {
@@ -159,29 +163,29 @@
     function goToMenu() { showScreen('menuScreen'); }
     function openSection(sectionId) { showScreen(sectionId); }
 
-    // Загрузка актуальных данных для быстрого сканирования
-    async function fetchStockDataForScan() {
+    // Загрузка данных складов и справочника товаров
+    async function loadAllData() {
         try {
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, {
-                method: 'GET',
-                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }
-            });
-            if (response.ok) {
-                globalStock = await response.json();
-            }
+            const [stockRes, prodRes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }),
+                fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } })
+            ]);
+            
+            if (stockRes.ok) globalStock = await stockRes.json();
+            if (prodRes.ok) globalProducts = await prodRes.json();
         } catch (e) {
-            console.error("Помилка завантаження залишків", e);
+            console.error("Помилка завантаження даних", e);
         }
     }
 
-    // Обработка непрерывного сканирования
+    // Обработка ввода и сканирования
     const scanInput = document.getElementById('scanInput');
     if (scanInput) {
         scanInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const code = scanInput.value.trim();
-                scanInput.value = ''; // Сразу очищаем для следующего скана
+                scanInput.value = '';
                 if (code) {
                     processScannedCode(code);
                 }
@@ -191,47 +195,87 @@
 
     function processScannedCode(code) {
         const resultCard = document.getElementById('productResultCard');
-        const title = document.getElementById('resProductTitle');
         const tbody = document.getElementById('resLocationsBody');
         tbody.innerHTML = '';
 
-        // Ищем все записи по введенному коду товара
-        const matches = globalStock.filter(item => item.product_code.toLowerCase() === code.toLowerCase());
+        const codeLower = code.toLowerCase();
 
-        title.innerText = `Код товару: ${code}`;
+        // 1. Ищем товар в справочнике по product_code или barcode
+        const prodInfo = globalProducts.find(p => 
+            (p.product_code && p.product_code.toLowerCase() === codeLower) || 
+            (p.barcode && p.barcode.toLowerCase() === codeLower)
+        );
+
+        // Определяем основной product_code для поиска по ящикам
+        const targetProductCode = prodInfo ? prodInfo.product_code : code;
+
+        // 2. Ищем места хранения
+        const matches = globalStock.filter(item => item.product_code.toLowerCase() === targetProductCode.toLowerCase());
+
+        // Заполняем карточку товара
+        document.getElementById('resProductName').innerText = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
+        document.getElementById('resProductCode').innerText = targetProductCode;
+        document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
+
+        // Расчет общего количества
+        const totalQty = matches.reduce((sum, item) => sum + Number(item.qty), 0);
+        document.getElementById('resTotalQty').innerText = `${totalQty} шт.`;
+
         resultCard.style.display = 'block';
 
         if (matches.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
             return;
         }
 
-        matches.forEach(item => {
+        matches.forEach((item, idx) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
-                <td><button class="reserve-btn" onclick='addToCart("${item.id}", "${item.box_name}", "${item.product_code}", ${item.qty})'>Зарезервувати</button></td>
+                <td>
+                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="1" min="1" max="${item.qty}">
+                </td>
+                <td>
+                    <button class="reserve-btn" onclick='addToCartFromTable("${item.id}", "${item.box_name}", "${targetProductCode}", "${prodInfo ? prodInfo.product_name : ''}", ${item.qty}, "qtyInput_${idx}")'>+ Корзинка</button>
+                </td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // Добавление в корзинку
-    function addToCart(id, box_name, product_code, qty) {
-        // Проверяем, есть ли уже этот ящик в корзинке
-        const existing = cart.find(i => i.id === id);
-        if (!existing) {
-            cart.push({ id, box_name, product_code, qty });
-            updateCartBadge();
-            alert(`Товар з ящика ${box_name} додано до корзинки!`);
-        } else {
-            alert(`Цей ящик вже є у корзинці.`);
+    // Резервирование указанного количества
+    function addToCartFromTable(id, box_name, product_code, product_name, maxQty, inputId) {
+        const qtyToReserve = parseInt(document.getElementById(inputId).value) || 1;
+
+        if (qtyToReserve <= 0) {
+            alert("Вкажіть коректну кількість!");
+            return;
         }
+        if (qtyToReserve > maxQty) {
+            alert(`Неможливо зарезервувати більше ніж є в ящику (${maxQty} шт.)!`);
+            return;
+        }
+
+        // Добавляем или обновляем запись в корзинке
+        const existing = cart.find(i => i.id === id);
+        if (existing) {
+            if (existing.qty + qtyToReserve > maxQty) {
+                alert(`Сумарно у корзинці вже ${existing.qty} шт. Більше ніж ${maxQty} шт. зарезервувати не можна!`);
+                return;
+            }
+            existing.qty += qtyToReserve;
+        } else {
+            cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
+        }
+
+        updateCartBadge();
+        alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
     }
 
     function updateCartBadge() {
-        document.getElementById('cartBadge').innerText = cart.length;
+        const totalCartItems = cart.reduce((sum, i) => sum + i.qty, 0);
+        document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
     function renderCart() {
@@ -246,9 +290,9 @@
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td>${item.product_code}</td>
+                <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
-                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index})">Видалити</button></td>
+                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index})">✕</button></td>
             `;
             tbody.appendChild(tr);
         });
@@ -269,39 +313,6 @@
         cart = [];
         updateCartBadge();
         goToMenu();
-    }
-
-    // Приход
-    async function sendArrival() {
-        const box = document.getElementById('arrBox').value.trim();
-        const product_code = document.getElementById('arrCode').value.trim();
-        const qty = parseInt(document.getElementById('arrQty').value) || 1;
-        const status = document.getElementById('arrStatus');
-
-        if (!box || !product_code) {
-            status.innerText = "Заповніть усі поля!";
-            status.style.color = "red";
-            return;
-        }
-
-        try {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
-                method: 'POST',
-                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-                body: JSON.stringify({ box_name: box, product_code: product_code, qty: qty, arrival_date: new Date().toISOString() })
-            });
-            if (res.ok) {
-                status.innerText = "Успішно збережено!";
-                status.style.color = "green";
-                document.getElementById('arrCode').value = '';
-            } else {
-                status.innerText = "Помилка сервера";
-                status.style.color = "red";
-            }
-        } catch(e) {
-            status.innerText = "Помилка мережі";
-            status.style.color = "red";
-        }
     }
 </script>
 
