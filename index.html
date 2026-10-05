@@ -8,61 +8,47 @@
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
         
-        /* Экраны */
         .screen { display: none; }
         .screen.active { display: block; }
 
-        /* Приветственный экран */
-        .welcome-card { background: #fff; padding: 30px 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: center; margin-top: 40px; }
-        .welcome-card h1 { color: #1a73e8; margin-bottom: 15px; }
-        .welcome-card p { color: #5f6368; line-height: 1.6; margin-bottom: 25px; font-size: 16px; }
-
-        /* Главное меню */
-        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-        .menu-btn { background: #fff; border: 2px solid #1a73e8; color: #1a73e8; padding: 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; }
-        .menu-btn:hover { background: #1a73e8; color: #fff; }
-        .menu-btn.full-width { grid-column: span 2; background: #1a73e8; color: #fff; }
-        .menu-btn.full-width:hover { background: #1557b0; }
-
-        /* Общие элементы интерфейса */
         .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .back-btn { background: #5f6368; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; }
         .back-btn:hover { background: #3c4043; }
 
+        /* Главное меню */
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .menu-btn { background: #fff; border: 2px solid #1a73e8; color: #1a73e8; padding: 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; position: relative; }
+        .menu-btn:hover { background: #1a73e8; color: #fff; }
+        .menu-btn.full-width { grid-column: span 2; background: #1a73e8; color: #fff; }
+        .menu-btn.full-width:hover { background: #1557b0; }
+        
+        .badge-count { position: absolute; top: 10px; right: 10px; background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+
         .card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
-        input, select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        input, select { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #1a73e8; border-radius: 6px; font-size: 18px; outline: none; }
         button.action-btn { background: #1a73e8; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; cursor: pointer; }
         button.action-btn:hover { background: #1557b0; }
-        .status { margin-top: 10px; padding: 10px; border-radius: 4px; font-weight: bold; text-align: center; }
-        .status.success { background: #d4edda; color: #155724; }
-        .status.error { background: #f8d7da; color: #721c24; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f1f3f4; }
         .total-badge { background: #e8f0fe; color: #1a73e8; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        
+        .reserve-btn { background: #28a745; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .reserve-btn:hover { background: #218838; }
     </style>
 </head>
 <body>
 
 <div class="container">
 
-    <!-- 1. ЭКРАН ПРИВЕТСТВИЯ -->
-    <div id="welcomeScreen" class="screen active">
-        <div class="welcome-card">
-            <h1>📦 SmartBox TSD</h1>
-            <p>Професійна система швидкого сканування товарів, контролю складських залишків за принципом FIFO та управління полицями.</p>
-            <button class="action-btn" onclick="goToMenu()">Увійти в систему</button>
-        </div>
-    </div>
-
-    <!-- 2. ГЛАВНОЕ МЕНЮ -->
-    <div id="menuScreen" class="screen">
+    <!-- 1. ГЛАВНОЕ МЕНЮ -->
+    <div id="menuScreen" class="screen active">
         <div class="header-bar">
             <h2>📌 Головне меню</h2>
-            <button class="back-btn" onclick="goToWelcome()">Вихід</button>
+            <button class="back-btn" onclick="alert('Сесія завершена')">Вихід</button>
         </div>
         <div class="menu-grid">
             <button class="menu-btn" onclick="openSection('infoSection')">ℹ️ Інформація</button>
@@ -70,97 +56,80 @@
             <button class="menu-btn" onclick="openSection('shelfSection')">📍 ШТ. на полке</button>
             <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
             <button class="menu-btn full-width" onclick="openSection('arrivalSection')">📥 Приход</button>
+            <button class="menu-btn full-width" style="background: #28a745; border-color: #28a745;" onclick="openSection('cartSection')">
+                🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
+            </button>
         </div>
     </div>
 
-    <!-- 3. РАЗДЕЛ: ИНФОРМАЦИЯ -->
+    <!-- 2. РАЗДЕЛ: ИНФОРМАЦИЯ / СКАНИРОВАНИЕ -->
     <div id="infoSection" class="screen">
         <div class="header-bar">
-            <h2>ℹ️ Інформація про залишки</h2>
-            <button class="back-btn" onclick="goToMenu()">Назад</button>
-        </div>
-        <div class="card">
-            <h3>Актуальні залишки в базі</h3>
-            <div style="max-height: 400px; overflow-y: auto;">
-                <table id="infoTable">
-                    <thead>
-                        <tr>
-                            <th>Ящик</th>
-                            <th>Код товару</th>
-                            <th>Кількість</th>
-                            <th>Дата приходу</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="4" style="text-align: center;">Завантаження...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- 4. РАЗДЕЛ: ПОДСОРТ -->
-    <div id="podsortSection" class="screen">
-        <div class="header-bar">
-            <h2>🔄 Підсорт товару</h2>
-            <button class="back-btn" onclick="goToMenu()">Назад</button>
-        </div>
-        <div class="card">
-            <p>Розділ налаштовується для формування завдань на поповнення полиць за FIFO.</p>
-        </div>
-    </div>
-
-    <!-- 5. РАЗДЕЛ: ШТ. НА ПОЛКЕ -->
-    <div id="shelfSection" class="screen">
-        <div class="header-bar">
-            <h2>📍 ШТ. на полке</h2>
-            <button class="back-btn" onclick="goToMenu()">Назад</button>
-        </div>
-        <div class="card">
-            <p>Облік та інвентаризація кількості товарів безпосередньо на торгових чи складських полицях.</p>
-        </div>
-    </div>
-
-    <!-- 6. РАЗДЕЛ: ФОТО -->
-    <div id="photoSection" class="screen">
-        <div class="header-bar">
-            <h2>📷 Фото фіксація</h2>
-            <button class="back-btn" onclick="goToMenu()">Назад</button>
-        </div>
-        <div class="card">
-            <p>Модуль фіксації зовнішнього вигляду товарів або пакувань.</p>
-        </div>
-    </div>
-
-    <!-- 7. РАЗДЕЛ: ПРИХОД (Основное сканирование) -->
-    <div id="arrivalSection" class="screen">
-        <div class="header-bar">
-            <h2>📥 Приход товару</h2>
+            <h2>ℹ️ Сканування та залишки</h2>
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         
         <div class="card">
             <div class="form-group">
-                <label for="worker">Працівник:</label>
-                <select id="worker">
-                    <option value="Оператор 1">Оператор 1</option>
-                    <option value="Оператор 2">Оператор 2</option>
-                </select>
+                <label for="scanInput">Скануйте товар або штрихкод:</label>
+                <input type="text" id="scanInput" placeholder="Скануйте сюди..." autofocus>
             </div>
-            <div class="form-group">
-                <label for="box">Ящик / Полиця:</label>
-                <input type="text" id="box" placeholder="Введіть або скануйте ящик (напр. Box-10)">
-            </div>
-            <div class="form-group">
-                <label for="product_code">Код товару (product_code):</label>
-                <input type="text" id="product_code" placeholder="Введіть код товару (напр. PRD-101)">
-            </div>
-            <div class="form-group">
-                <label for="qty">Кількість:</label>
-                <input type="number" id="qty" value="1" min="1">
-            </div>
-            <button class="action-btn" onclick="sendScan()">Зберегти приход</button>
-            <div id="status"></div>
+        </div>
+
+        <div id="productResultCard" class="card" style="display: none;">
+            <h3 id="resProductTitle" style="color: #1a73e8; margin-top: 0;">Код: ---</h3>
+            <p><b>Знайдені місця зберігання на складі:</b></p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ящик</th>
+                        <th>Кількість</th>
+                        <th>Дія</th>
+                    </tr>
+                </thead>
+                <tbody id="resLocationsBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. РАЗДЕЛ: КОРЗИНКА -->
+    <div id="cartSection" class="screen">
+        <div class="header-bar">
+            <h2>🛒 Корзинка збору товару</h2>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        <div class="card">
+            <h3>Завдання на збір у зал</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ящик</th>
+                        <th>Код товару</th>
+                        <th>Кількість</th>
+                        <th>Видалити</th>
+                    </tr>
+                </thead>
+                <tbody id="cartTableBody">
+                    <tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>
+                </tbody>
+            </table>
+            <button class="action-btn" style="margin-top: 15px; background: #28a745;" onclick="completeCart()">Винести в зал (Завершити)</button>
+        </div>
+    </div>
+
+    <!-- Заглушки для остальных разделов -->
+    <div id="podsortSection" class="screen"><div class="header-bar"><h2>🔄 Підсорт</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
+    <div id="shelfSection" class="screen"><div class="header-bar"><h2>📍 ШТ. на полке</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
+    <div id="photoSection" class="screen"><div class="header-bar"><h2>📷 Фото</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
+    <div id="arrivalSection" class="screen">
+        <div class="header-bar"><h2>📥 Приход</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div>
+        <div class="card">
+            <div class="form-group"><label>Ящик / Полиця:</label><input type="text" id="arrBox" placeholder="Box-10"></div>
+            <div class="form-group"><label>Код товару:</label><input type="text" id="arrCode" placeholder="PRD-101"></div>
+            <div class="form-group"><label>Кількість:</label><input type="number" id="arrQty" value="1" min="1"></div>
+            <button class="action-btn" onclick="sendArrival()">Зберегти приход</button>
+            <div id="arrStatus" style="margin-top:10px; font-weight:bold; text-align:center;"></div>
         </div>
     </div>
 
@@ -170,117 +139,170 @@
     const SUPABASE_URL = "https://hjsdayynmmzajerjgqrb.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2RheXlubW16YWplcmpncXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY4MTEsImV4cCI6MjEwMTkzMjgxMX0.4lMQf7lpymLCEAA4OJCUwGUda1nKfoxduADDbaWGo0w";
 
-    // Управление экранами
+    let cart = [];
+    let globalStock = [];
+
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
         window.scrollTo(0, 0);
-    }
-
-    function goToWelcome() { showScreen('welcomeScreen'); }
-    function goToMenu() { showScreen('menuScreen'); }
-    
-    function openSection(sectionId) {
-        showScreen(sectionId);
-        if (sectionId === 'infoSection') {
-            fetchInfoData();
-        }
-    }
-
-    // Логика отправки прихода
-    async function sendScan() {
-        const box = document.getElementById('box').value.trim();
-        const product_code = document.getElementById('product_code').value.trim();
-        const qty = parseInt(document.getElementById('qty').value) || 1;
-
-        if (!box || !product_code) {
-            showStatus("Заповніть Ящик та Код товару!", "error");
-            return;
-        }
-
-        const payload = { 
-            box_name: box, 
-            product_code: product_code, 
-            qty: qty,
-            arrival_date: new Date().toISOString()
-        };
-
-        try {
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
-                method: 'POST',
-                headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=minimal'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (response.ok) {
-                showStatus(`Успішно додано! Ящик: ${box} | Код: ${product_code} | Кількість: ${qty}`, "success");
-                document.getElementById('product_code').value = '';
-                document.getElementById('qty').value = '1';
-                document.getElementById('product_code').focus();
-            } else {
-                const err = await response.text();
-                showStatus("Помилка Supabase: " + err, "error");
-            }
-        } catch (e) {
-            showStatus("Помилка мережі: " + e.message, "error");
-        }
-    }
-
-    // Загрузка данных для раздела "Информация"
-    async function fetchInfoData() {
-        const tbody = document.querySelector('#infoTable tbody');
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Завантаження...</td></tr>';
         
+        if (screenId === 'infoSection') {
+            fetchStockDataForScan();
+            setTimeout(() => document.getElementById('scanInput').focus(), 100);
+        }
+        if (screenId === 'cartSection') {
+            renderCart();
+        }
+    }
+
+    function goToMenu() { showScreen('menuScreen'); }
+    function openSection(sectionId) { showScreen(sectionId); }
+
+    // Загрузка актуальных данных для быстрого сканирования
+    async function fetchStockDataForScan() {
         try {
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*&order=arrival_date.desc`, {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, {
                 method: 'GET',
                 headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }
             });
-
-            if (!response.ok) return;
-            const data = await response.json();
-            
-            tbody.innerHTML = '';
-            if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Немає даних</td></tr>';
-                return;
+            if (response.ok) {
+                globalStock = await response.json();
             }
-
-            data.forEach(item => {
-                const dateStr = item.arrival_date ? new Date(item.arrival_date).toLocaleString('uk-UA') : '';
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><b>${item.box_name}</b></td>
-                    <td>${item.product_code}</td>
-                    <td><span class="total-badge">${item.qty} шт.</span></td>
-                    <td><small>${dateStr}</small></td>
-                `;
-                tbody.appendChild(tr);
-            });
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Помилка завантаження</td></tr>`;
+            console.error("Помилка завантаження залишків", e);
         }
     }
 
-    function showStatus(text, type) {
-        const statusDiv = document.getElementById('status');
-        if (statusDiv) {
-            statusDiv.innerText = text;
-            statusDiv.className = `status ${type}`;
+    // Обработка непрерывного сканирования
+    const scanInput = document.getElementById('scanInput');
+    if (scanInput) {
+        scanInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const code = scanInput.value.trim();
+                scanInput.value = ''; // Сразу очищаем для следующего скана
+                if (code) {
+                    processScannedCode(code);
+                }
+            }
+        });
+    }
+
+    function processScannedCode(code) {
+        const resultCard = document.getElementById('productResultCard');
+        const title = document.getElementById('resProductTitle');
+        const tbody = document.getElementById('resLocationsBody');
+        tbody.innerHTML = '';
+
+        // Ищем все записи по введенному коду товара
+        const matches = globalStock.filter(item => item.product_code.toLowerCase() === code.toLowerCase());
+
+        title.innerText = `Код товару: ${code}`;
+        resultCard.style.display = 'block';
+
+        if (matches.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
+            return;
+        }
+
+        matches.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${item.box_name}</b></td>
+                <td><span class="total-badge">${item.qty} шт.</span></td>
+                <td><button class="reserve-btn" onclick='addToCart("${item.id}", "${item.box_name}", "${item.product_code}", ${item.qty})'>Зарезервувати</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Добавление в корзинку
+    function addToCart(id, box_name, product_code, qty) {
+        // Проверяем, есть ли уже этот ящик в корзинке
+        const existing = cart.find(i => i.id === id);
+        if (!existing) {
+            cart.push({ id, box_name, product_code, qty });
+            updateCartBadge();
+            alert(`Товар з ящика ${box_name} додано до корзинки!`);
+        } else {
+            alert(`Цей ящик вже є у корзинці.`);
         }
     }
 
-    // Авто-фокус на коде при нажатии Enter
-    window.onload = function() {
-        document.getElementById('box').addEventListener('keypress', e => { if(e.key==='Enter') { e.preventDefault(); document.getElementById('product_code').focus(); } });
-        document.getElementById('product_code').addEventListener('keypress', e => { if(e.key==='Enter') { e.preventDefault(); document.getElementById('qty').focus(); } });
-        document.getElementById('qty').addEventListener('keypress', e => { if(e.key==='Enter') { e.preventDefault(); sendScan(); } });
-    };
+    function updateCartBadge() {
+        document.getElementById('cartBadge').innerText = cart.length;
+    }
+
+    function renderCart() {
+        const tbody = document.getElementById('cartTableBody');
+        tbody.innerHTML = '';
+        if (cart.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
+            return;
+        }
+
+        cart.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${item.box_name}</b></td>
+                <td>${item.product_code}</td>
+                <td><span class="total-badge">${item.qty} шт.</span></td>
+                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index})">Видалити</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function removeFromCart(index) {
+        cart.splice(index, 1);
+        updateCartBadge();
+        renderCart();
+    }
+
+    function completeCart() {
+        if (cart.length === 0) {
+            alert("Корзинка порожня!");
+            return;
+        }
+        alert("Завдання успішно передано для виносу в зал!");
+        cart = [];
+        updateCartBadge();
+        goToMenu();
+    }
+
+    // Приход
+    async function sendArrival() {
+        const box = document.getElementById('arrBox').value.trim();
+        const product_code = document.getElementById('arrCode').value.trim();
+        const qty = parseInt(document.getElementById('arrQty').value) || 1;
+        const status = document.getElementById('arrStatus');
+
+        if (!box || !product_code) {
+            status.innerText = "Заповніть усі поля!";
+            status.style.color = "red";
+            return;
+        }
+
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                body: JSON.stringify({ box_name: box, product_code: product_code, qty: qty, arrival_date: new Date().toISOString() })
+            });
+            if (res.ok) {
+                status.innerText = "Успішно збережено!";
+                status.style.color = "green";
+                document.getElementById('arrCode').value = '';
+            } else {
+                status.innerText = "Помилка сервера";
+                status.style.color = "red";
+            }
+        } catch(e) {
+            status.innerText = "Помилка мережі";
+            status.style.color = "red";
+        }
+    }
 </script>
 
 </body>
