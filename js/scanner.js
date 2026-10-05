@@ -1,4 +1,4 @@
-let currentScanMode = 'box'; // 'box' или 'item'
+let currentScanMode = 'box'; // 'box' або 'item'
 let scannedBoxCode = null;
 
 function setScanMode(mode) {
@@ -20,7 +20,7 @@ function setScanMode(mode) {
     if (input) input.focus();
 }
 
-// Главный обработчик сканирования на складе (FIFO / Сборка)
+// Головний обробник сканування на складі (FIFO / Збірка)
 async function handleMainScan(e) {
     if (e.key === 'Enter') {
         const val = e.target.value.trim();
@@ -28,18 +28,19 @@ async function handleMainScan(e) {
         if (!val) return;
 
         if (currentScanMode === 'box') {
-            // Проверка существования коробки в стоке
+            // Перевірка існування коробки в стоці
             const boxFound = globalStock.find(s => s.box_code === val || s.box_id === val);
             if (boxFound) {
                 scannedBoxCode = val;
-                document.getElementById('currentBoxDisplay').innerText = `Коробка: ${val}`;
+                const boxDisplay = document.getElementById('currentBoxDisplay');
+                if (boxDisplay) boxDisplay.innerText = `Коробка: ${val}`;
                 alert(`Коробку ${val} успішно вибрано! Тепер скануйте товар.`);
                 setScanMode('item');
             } else {
                 alert('Коробку не знайдено в базі!');
             }
         } else {
-            // Режим сканирования товара с FIFO
+            // Режим сканування товару з FIFO
             if (!scannedBoxCode) {
                 alert('Спочатку скануйте коробку!');
                 setScanMode('box');
@@ -52,7 +53,7 @@ async function handleMainScan(e) {
                 return;
             }
 
-            // Добавляем позицию в заказ через API (с привязкой к product_code)
+            // Додаємо позицію в замовлення через API (з прив'язкою до product_code)
             try {
                 const res = await fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
                     method: 'POST',
@@ -71,9 +72,20 @@ async function handleMainScan(e) {
                 } else {
                     alert('Помилка збереження товару');
                 }
-            } catch (err) {
-                console.error("Помилка FIFO сканування", err);
+            } else (err) {
+                // виправлено синтаксис catch нижче
             }
+        } catch (err) {
+            console.error("Помилка FIFO сканування", err);
         }
     }
 }
+
+// Автоматична прив'язка обробника подій при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', () => {
+    const scanInput = document.getElementById('mainScanInput');
+    if (scanInput) {
+        scanInput.addEventListener('keydown', handleMainScan);
+        scanInput.focus();
+    }
+});
