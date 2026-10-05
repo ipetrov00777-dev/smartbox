@@ -20,7 +20,7 @@ function setScanMode(mode) {
     if (input) input.focus();
 }
 
-// Звуковой сигнал сканера (Beep)
+// Звуковий сигнал сканера (Beep)
 function playBeep() {
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -54,10 +54,8 @@ async function handleMainScan(e) {
                 boxInfoLabel.innerText = `Обрана коробка/полиця: ${val}`;
                 boxInfoLabel.style.color = '#1a73e8';
             }
-            // Автоматично перемикаємо на режим сканування товару після коробки
             setScanMode('item');
         } else {
-            // Режим сканування товару (FIFO)
             const productCode = val;
             if (!scannedBoxCode) {
                 alert("Спершу відскануйте коробку або полицю!");
@@ -65,7 +63,6 @@ async function handleMainScan(e) {
                 return;
             }
 
-            // Додаємо товар у поточну коробку за правилами FIFO
             await addItemToBoxFifo(scannedBoxCode, productCode);
         }
     }
@@ -73,7 +70,6 @@ async function handleMainScan(e) {
 
 async function addItemToBoxFifo(boxCode, productCode) {
     try {
-        // Перевіряємо наявність товару в базі через глобальні масиви або API
         const prodInfo = globalProducts.find(p => 
             (p.product_code && p.product_code.toLowerCase() === productCode.toLowerCase()) || 
             (p.barcode && p.barcode.toLowerCase() === productCode.toLowerCase())
@@ -86,7 +82,6 @@ async function addItemToBoxFifo(boxCode, productCode) {
             await ensureActiveOrder();
         }
 
-        // Зберігаємо рядок в Supabase (order_items)
         const res = await fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
             method: 'POST',
             headers: HEADERS,
@@ -114,7 +109,6 @@ async function addItemToBoxFifo(boxCode, productCode) {
     } catch (err) {
         console.error("Помилка FIFO сканування:", err);
     } finally {
-        // Повертаємо фокус для наступного сканування
         const input = document.getElementById('mainScanInput');
         if (input) input.focus();
     }
