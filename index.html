@@ -90,7 +90,7 @@
                 <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                 <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
                 <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
-                <p><b>В роботі (в корзинці):</b> <span id="resCartQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
+                <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
             </div>
 
             <p style="margin-bottom: 5px;"><b>Місця зберігання на складі:</b></p>
@@ -219,7 +219,7 @@
         
         currentScannedMatches = matches.map(item => ({
             ...item,
-            baseQty: parseInt(item.qty, 10) || 0 // Неизменный реальный остаток ящика из базы
+            baseQty: parseInt(item.qty, 10) || 0 // Изначальный неизменный остаток из базы
         }));
 
         resultCard.style.display = 'block';
@@ -233,7 +233,7 @@
         if (currentScannedMatches.length === 0) {
             tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
             document.getElementById('resTotalStock').innerText = `0 шт.`;
-            document.getElementById('resCartQty').innerText = `0 шт.`;
+            document.getElementById('resTotalQty').innerText = `0 шт.`;
             document.getElementById('globalCartBtn').setAttribute('disabled', 'true');
             return;
         }
@@ -248,14 +248,15 @@
                 .filter(i => i.id === item.id)
                 .reduce((sum, i) => sum + i.qty, 0);
 
-            // Реально доступно для выбора = База минус то, что уже в корзинке минус то, что сейчас введено в инпут
+            // Доступно для нового ввода в инпут = База минус то, что уже в корзинке
             const availableForAction = item.baseQty - inCartForThisBox;
             const maxInputLimit = Math.max(0, availableForAction);
 
-            // Формируем красивый статус остатка
+            // Формируем отображение по вашему шаблону: 8 (-3_Кор) = 5 шт. (или просто 8 если ничего не зарезервировано)
             let stockDisplay = `${item.baseQty} шт.`;
             if (inCartForThisBox > 0) {
-                stockDisplay = `${item.baseQty} шт. <span style="color: #2d6a4f; font-size: 12px;">(в корзинці: ${inCartForThisBox})</span>`;
+                const allowedNow = availableForAction;
+                stockDisplay = `${item.baseQty} <span style="color: #d93025;">(-${inCartForThisBox}_Кор)</span> = <b style="color: #2d6a4f;">${allowedNow} шт.</b>`;
             }
 
             const tr = document.createElement('tr');
@@ -306,15 +307,15 @@
             }
         });
 
-        // Общая строка наявности: база / если что-то в корзинке или вводится, показываем остаток
+        const totalRemaining = totalBaseStock - totalInCart - totalReservedNow;
+
         let totalStockDisplay = `${totalBaseStock} шт.`;
         if (totalInCart > 0 || totalReservedNow > 0) {
-            const remaining = totalBaseStock - totalInCart - totalReservedNow;
-            totalStockDisplay = `${totalBaseStock} шт. / <span style="color: #d93025; font-weight: bold;">${remaining}</span>`;
+            totalStockDisplay = `${totalBaseStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`;
         }
 
         document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
-        document.getElementById('resCartQty').innerText = `${totalInCart + totalReservedNow} шт.`;
+        document.getElementById('resTotalQty').innerText = `${totalInCart + totalReservedNow} шт.`;
 
         const globalBtn = document.getElementById('globalCartBtn');
         if (hasAnyQty) {
@@ -346,7 +347,7 @@
                     });
                 }
 
-                // Сбрасываем поле ввода на 0, а базовый склад НЕ трогаем (его учтет корзинка)
+                // Сбрасываем инпут на 0, база ящика не меняется (ее учитывает корзинка)
                 inputElement.value = 0;
                 addedCount++;
             }
