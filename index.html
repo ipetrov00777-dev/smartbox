@@ -209,15 +209,16 @@
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
 
-        // Считаем общий остаток на складе по всем ящикам для этого товара
         const totalStock = matches.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
         document.getElementById('resTotalStock').innerText = `${totalStock} шт.`;
+        
+        // При сканировании сбрасываем счетчик зарезервированного в карточке на 0
+        document.getElementById('resTotalQty').innerText = `0 шт.`;
 
         resultCard.style.display = 'block';
 
         if (matches.length === 0) {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
-            document.getElementById('resTotalQty').innerText = `0 шт.`;
             return;
         }
 
@@ -227,7 +228,7 @@
                 <td><b>${item.box_name}</b></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
                 <td>
-                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="1" min="1" max="${item.qty}" oninput="recalculateTotal()">
+                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="1" min="1" max="${item.qty}">
                 </td>
                 <td>
                     <button class="reserve-btn" onclick='addToCartFromTable("${item.id}", "${item.box_name}", "${targetProductCode}", "${prodInfo ? prodInfo.product_name : ''}", ${item.qty}, "qtyInput_${idx}")'>+ Корзинка</button>
@@ -235,18 +236,6 @@
             `;
             tbody.appendChild(tr);
         });
-
-        recalculateTotal();
-    }
-
-    function recalculateTotal() {
-        const inputs = document.querySelectorAll('.qty-input-table');
-        let sum = 0;
-        inputs.forEach(inp => {
-            const val = parseInt(inp.value) || 0;
-            sum += val;
-        });
-        document.getElementById('resTotalQty').innerText = `${sum} шт.`;
     }
 
     function addToCartFromTable(id, box_name, product_code, product_name, maxQty, inputId) {
@@ -272,8 +261,18 @@
             cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
         }
 
+        // Обновляем строку "Зарезервировано шт." в карточке на основе текущей корзинки для этого товара
+        updateReservedDisplay(product_code);
+
         updateCartBadge();
         alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
+    }
+
+    function updateReservedDisplay(currentProductCode) {
+        const totalReserved = cart
+            .filter(i => i.product_code.toLowerCase() === currentProductCode.toLowerCase())
+            .reduce((sum, i) => sum + i.qty, 0);
+        document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
     }
 
     function updateCartBadge() {
@@ -295,16 +294,17 @@
                 <td><b>${item.box_name}</b></td>
                 <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
-                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index})">✕</button></td>
+                <td><button class="reserve-btn" style="background:#dc3545;" onclick="removeFromCart(${index}, '${item.product_code}')">✕</button></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    function removeFromCart(index) {
+    function removeFromCart(index, productCode) {
         cart.splice(index, 1);
         updateCartBadge();
         renderCart();
+        updateReservedDisplay(productCode);
     }
 
     function completeCart() {
