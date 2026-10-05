@@ -84,6 +84,7 @@
                 <h3 id="resProductName">Назва товару</h3>
                 <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                 <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
+                <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
                 <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
             </div>
 
@@ -208,7 +209,11 @@
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        // Сбрасываем при новом сканировании
+        // Считаем общую сумму по всем найденным ящикам склада
+        const totalStockQty = matches.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+        document.getElementById('resTotalStock').innerText = `${totalStockQty} шт.`;
+
+        // Сбрасываем поле зарезервированного при новом сканировании
         document.getElementById('resTotalQty').innerText = `0 шт.`;
 
         resultCard.style.display = 'block';
@@ -233,7 +238,7 @@
             tbody.appendChild(tr);
         });
 
-        // Считаем сразу при выводе (сумма по инпутам на экране)
+        // Считаем сразу при выводе
         updateLiveReserved();
     }
 
