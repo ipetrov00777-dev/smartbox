@@ -144,6 +144,7 @@
     let cart = [];
     let globalStock = [];
     let globalProducts = [];
+    let currentScannedMatches = []; // Активные данные по текущему сканированию
 
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -192,9 +193,6 @@
 
     function processScannedCode(code) {
         const resultCard = document.getElementById('productResultCard');
-        const tbody = document.getElementById('resLocationsBody');
-        tbody.innerHTML = '';
-
         const codeLower = code.toLowerCase();
 
         const prodInfo = globalProducts.find(p => 
@@ -209,88 +207,110 @@
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        // Общая наявность по всем ящикам
-        const totalStockQty = matches.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
-        document.getElementById('resTotalStock').innerText = `${totalStockQty} шт.`;
-
-        // Сбрасываем зарезервированное на 0
-        document.getElementById('resTotalQty').innerText = `0 шт.`;
+        // Клонируем данные по ящикам, чтобы динамически менять остатки на экране
+        currentScannedMatches = matches.map(item => ({
+            ...item,
+            originalQty: parseInt(item.qty, 10) || 0
+        }));
 
         resultCard.style.display = 'block';
+        renderLocationsTable(prodInfo ? prodInfo.product_name : '');
+    }
 
-        if (matches.length === 0) {
+    function renderLocationsTable(productName) {
+        const tbody = document.getElementById('resLocationsBody');
+        tbody.innerHTML = '';
+
+        if (currentScannedMatches.length === 0) {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
+            document.getElementById('resTotalStock').innerText = `0 шт.`;
+            document.getElementById('resTotalQty').innerText = `0 шт.`;
             return;
         }
 
-        matches.forEach((item, idx) => {
-            const maxAvailable = parseInt(item.qty, 10) || 0;
+        currentScannedMatches.forEach((item, idx) => {
+            const inputId = `qtyInput_${idx}`;
+            const currentInputValue = parseInt(document.getElementById(inputId)?.value, 10) || 0;
+            const dynamicAvailable = item.originalQty - currentInputValue;
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td><span class="total-badge">${maxAvailable} шт.</span></td>
+                <td><span class="total-badge" id="availBadge_${idx}">${dynamicAvailable} шт.</span></td>
                 <td>
-                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="0" min="0" max="${maxAvailable}" oninput="validateAndLimitInput(this, ${maxAvailable})">
+                    <input type="number" id="${inputId}" class="qty-input-table" value="${currentInputValue}" min="0" max="${item.originalQty}" oninput="handleQtyInput(${idx}, ${item.originalQty})">
                 </td>
                 <td>
-                    <button class="reserve-btn" onclick='addToCartFromTable("${item.id}", "${item.box_name}", "${targetProductCode}", "${prodInfo ? prodInfo.product_name : ''}", ${maxAvailable}, "qtyInput_${idx}")'>+ Корзинка</button>
+                    <button class="reserve-btn" onclick='addToCartFromTable(${idx}, "${item.id}", "${item.box_name}", "${item.product_code}", "${productName}")'>+ Корзинка</button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
 
-        updateLiveReserved();
+        updateSummaryTotals();
     }
 
-    // Функция для контроля ввода (чтобы не ввести больше, чем есть в ящике)
-    function validateAndLimitInput(input, maxVal) {
+    // Обработка ввода в поле К-сть (динамическое уменьшение отображаемого остатка)
+    function handleQtyInput(idx, maxVal) {
+        const input = document.getElementById(`qtyInput_${idx}`);
         let val = parseInt(input.value, 10);
+
         if (isNaN(val) || val < 0) {
+            val = 0;
             input.value = 0;
         } else if (val > maxVal) {
+            val = maxVal;
             input.value = maxVal;
         }
-        updateLiveReserved();
+
+        // Пересчитываем остаток в конкретной строке ящика
+        const dynamicAvailable = maxVal - val;
+        document.getElementById(`availBadge_${idx}`).innerText = `${dynamicAvailable} шт.`;
+
+        updateSummaryTotals();
     }
 
-    // Мгновенный подсчет суммы из полей ввода в таблице (строго через base 10 во избежание багов с нулями)
-    function updateLiveReserved() {
-        const inputs = document.querySelectorAll('.qty-input-table');
-        let sum = 0;
-        inputs.forEach(input => {
-            const val = parseInt(input.value, 10) || 0;
-            sum += val;
+    // Подсчет общих сумм сверху карточки
+    function updateSummaryTotals() {
+        let totalStockLeft = 0;
+        let totalReserved = 0;
+
+        currentScannedMatches.forEach((item, idx) => {
+            const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
+            totalReserved += inputVal;
+            totalStockLeft += (item.originalQty - inputVal);
         });
-        document.getElementById('resTotalQty').innerText = `${sum} шт.`;
+
+        document.getElementById('resTotalStock').innerText = `${totalStockLeft} шт.`;
+        document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
     }
 
-    function addToCartFromTable(id, box_name, product_code, product_name, maxQty, inputId) {
+    function addToCartFromTable(idx, id, box_name, product_code, product_name) {
+        const inputId = `qtyInput_${idx}`;
         const inputElement = document.getElementById(inputId);
         const qtyToReserve = parseInt(inputElement.value, 10) || 0;
+        const maxQty = currentScannedMatches[idx].originalQty;
 
         if (qtyToReserve <= 0) {
             alert("Вкажіть кількість більшу за 0!");
             return;
         }
-        if (qtyToReserve > maxQty) {
-            alert(`Неможливо зарезервувати більше ніж є в ящику (${maxQty} шт.)!`);
-            return;
-        }
 
         const existing = cart.find(i => i.id === id);
         if (existing) {
-            if (existing.qty + qtyToReserve > maxQty) {
-                alert(`Сумарно у корзинці вже ${existing.qty} шт. Більше ніж ${maxQty} шт. зарезервувати не можна!`);
-                return;
-            }
             existing.qty += qtyToReserve;
         } else {
             cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
         }
 
-        // Сбрасываем поле ввода обратно на 0 после добавления в корзину
+        // Снижаем оригинальный доступный остаток ящика на складе (имитация ухода в корзину)
+        currentScannedMatches[idx].originalQty -= qtyToReserve;
+
+        // Сбрасываем поле ввода обратно на 0
         inputElement.value = 0;
-        updateLiveReserved();
+
+        // Перерисовываем таблицу с новыми остатками
+        renderLocationsTable(product_name);
 
         updateCartBadge();
         alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
