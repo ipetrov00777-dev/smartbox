@@ -68,7 +68,7 @@
     <!-- 2. РАЗДЕЛ: ИНФОРМАЦИЯ / СКАНУВАННЯ -->
     <div id="infoSection" class="screen">
         <div class="header-bar">
-            <h2>ℹ️️ Сканування та залишки</h2>
+            <h2>ℹ Сканування та залишки</h2>
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         
@@ -208,7 +208,7 @@
         document.getElementById('resProductCode').innerText = targetProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        // При сканировании сбрасываем счетчик зарезервированного в карточке на 0
+        // Сбрасываем при новом сканировании
         document.getElementById('resTotalQty').innerText = `0 шт.`;
 
         resultCard.style.display = 'block';
@@ -224,7 +224,7 @@
                 <td><b>${item.box_name}</b></td>
                 <td><span class="total-badge">${item.qty} шт.</span></td>
                 <td>
-                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="1" min="1" max="${item.qty}">
+                    <input type="number" id="qtyInput_${idx}" class="qty-input-table" value="1" min="1" max="${item.qty}" oninput="updateLiveReserved()">
                 </td>
                 <td>
                     <button class="reserve-btn" onclick='addToCartFromTable("${item.id}", "${item.box_name}", "${targetProductCode}", "${prodInfo ? prodInfo.product_name : ''}", ${item.qty}, "qtyInput_${idx}")'>+ Корзинка</button>
@@ -233,8 +233,19 @@
             tbody.appendChild(tr);
         });
 
-        // Проверяем, есть ли уже этот товар в корзинке (если сканируем повторно)
-        updateReservedDisplay(targetProductCode);
+        // Считаем сразу при выводе (сумма по инпутам на экране)
+        updateLiveReserved();
+    }
+
+    // Функция мгновенного подсчета суммы из полей ввода в таблице
+    function updateLiveReserved() {
+        const inputs = document.querySelectorAll('.qty-input-table');
+        let sum = 0;
+        inputs.forEach(input => {
+            const val = parseInt(input.value) || 0;
+            sum += val;
+        });
+        document.getElementById('resTotalQty').innerText = `${sum} шт.`;
     }
 
     function addToCartFromTable(id, box_name, product_code, product_name, maxQty, inputId) {
@@ -260,16 +271,8 @@
             cart.push({ id, box_name, product_code, product_name, qty: qtyToReserve });
         }
 
-        updateReservedDisplay(product_code);
         updateCartBadge();
         alert(`Додано ${qtyToReserve} шт. з ящика ${box_name} до корзинки!`);
-    }
-
-    function updateReservedDisplay(currentProductCode) {
-        const totalReserved = cart
-            .filter(i => i.product_code.toLowerCase() === currentProductCode.toLowerCase())
-            .reduce((sum, i) => sum + i.qty, 0);
-        document.getElementById('resTotalQty').innerText = `${totalReserved} шт.`;
     }
 
     function updateCartBadge() {
@@ -301,7 +304,6 @@
         cart.splice(index, 1);
         updateCartBadge();
         renderCart();
-        updateReservedDisplay(productCode);
     }
 
     function completeCart() {
