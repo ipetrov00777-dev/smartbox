@@ -101,6 +101,7 @@
                 <thead>
                     <tr>
                         <th>Ящик</th>
+                        <th>Дата приходу</th>
                         <th>Наявність</th>
                         <th>К-сть</th>
                     </tr>
@@ -313,7 +314,7 @@
         tbody.innerHTML = '';
 
         if (currentScannedMatches.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
             document.getElementById('resTotalStock').innerText = `0 шт.`;
             document.getElementById('resTotalQty').innerText = `0 шт.`;
             document.getElementById('globalCartBtn').setAttribute('disabled', 'true');
@@ -334,9 +335,17 @@
                 stockHtml = `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${remainder}</span>`;
             }
 
+            // Форматируем дату прихода (arrival_date) под украинский формат
+            let arrivalDateFormatted = '—';
+            if (item.arrival_date) {
+                const d = new Date(item.arrival_date);
+                arrivalDateFormatted = d.toLocaleDateString('uk-UA') + ' ' + d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+            }
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
+                <td><small style="color: #555;">${arrivalDateFormatted}</small></td>
                 <td><span class="total-badge" id="availBadge_${idx}">${stockHtml}</span></td>
                 <td>
                     <input type="number" id="${inputId}" class="qty-input-table" value="0" min="0" max="${availableForInput}" oninput="handleQtyInput(${idx}, ${availableForInput}, ${item.originalQty}, ${inCartQty})">
@@ -551,19 +560,6 @@
         renderCart();
     }
 
-    async function loadHistory() {
-        const tbody = document.getElementById('historyTableBody');
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>';
-
-        try {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/completed_manager?select=*&order=created_at.desc&limit=50`, { headers: HEADERS });
-            // ... (остальной корректный код истории)
-        } catch (e) {
-            console.error("Помилка завантаження історії", e);
-        }
-    }
-
-    // Загрузка истории правильно:
     async function loadHistory() {
         const tbody = document.getElementById('historyTableBody');
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>';
