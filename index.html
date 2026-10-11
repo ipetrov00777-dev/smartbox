@@ -44,6 +44,8 @@
         .global-cart-btn:hover:not(:disabled) { background: #218838; cursor: pointer; }
         .global-cart-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
         
+        .pick-row-btn { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: bold; }
+        .pick-row-btn:hover { background: #218838; }
         .remove-row-btn { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
         .remove-row-btn:hover { background: #c82333; }
     </style>
@@ -63,7 +65,8 @@
             <button class="menu-btn" onclick="openSection('podsortSection')">🔄 Підсорт</button>
             <button class="menu-btn" onclick="openSection('shelfSection')">📍 ШТ. на полке</button>
             <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
-            <button class="menu-btn full-width" onclick="openSection('arrivalSection')">📥 Приход</button>
+            <button class="menu-btn" onclick="openSection('historySection')">📜 Історія</button>
+            <button class="menu-btn" onclick="openSection('arrivalSection')">📥 Приход</button>
             <button class="menu-btn full-width" style="background: #28a745; border-color: #28a745;" onclick="openSection('cartSection')">
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
@@ -117,7 +120,7 @@
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         <div class="card">
-            <h3>Завдання на збір у зал</h3>
+            <h3>Завдання на збір у зал (поштучне підтвердження)</h3>
             <table>
                 <thead>
                     <tr>
@@ -131,7 +134,29 @@
                     <tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>
                 </tbody>
             </table>
-            <button class="action-btn" style="margin-top: 15px; background: #28a745;" onclick="completeCart()">Винести в зал (Завершити)</button>
+        </div>
+    </div>
+
+    <!-- 4. РАЗДЕЛ: ІСТОРІЯ ВИНОСІВ -->
+    <div id="historySection" class="screen">
+        <div class="header-bar">
+            <h2>📜 Історія виносів</h2>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Час</th>
+                        <th>Ящик</th>
+                        <th>Товар</th>
+                        <th>К-сть</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -183,6 +208,9 @@
         }
         if (screenId === 'cartSection') {
             renderCart();
+        }
+        if (screenId === 'historySection') {
+            loadHistory();
         }
     }
 
@@ -406,7 +434,7 @@
             await Promise.all(insertPromises);
             await loadAllData();
             renderLocationsTable();
-            alert("Вибрані товари успішно збережено в Supabase!");
+            alert("Товари успішно додано в корзинку!");
         }
     }
 
@@ -425,7 +453,6 @@
             return;
         }
 
-        // Сортируем записи по названию ящика (чтобы Box-10 шли подряд, затем Box-12 и т.д.)
         const sortedItems = [...dbCartItems].sort((a, b) => {
             return a.box_name.localeCompare(b.box_name, undefined, { numeric: true, sensitivity: 'base' });
         });
@@ -436,10 +463,72 @@
                 <td><b>${item.box_name}</b></td>
                 <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
                 <td><span class="total-badge">${item.qty_reserved} шт.</span></td>
-                <td><button class="remove-row-btn" onclick="removeFromCart('${item.id}')">✕</button></td>
+                <td>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved})" title="Підтвердити і списати">✓</button>
+                        <button class="remove-row-btn" onclick="removeFromCart('${item.id}')" title="Видалити">✕</button>
+                    </div>
+                </td>
             `;
             tbody.appendChild(tr);
         });
+    }
+
+    // ПОШТУЧНЕ ПІДТВЕРДЖЕННЯ (ГАЛОЧКА): СПИСАННЯ З СКЛАДУ + ЗАПИС В ІСТОРІЮ + ВИДАЛЕННЯ З КОРЗИНИ
+    async function pickCartItem(itemId, boxName, productCode, qtyToPick) {
+        try {
+            // 1. Отримуємо актуальний залишок у ящику з бази
+            const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
+            const boxData = await resBox.json();
+
+            if (!boxData || boxData.length === 0) {
+                alert("Помилка: ящик або товар не знайдено на складі!");
+                return;
+            }
+
+            const currentQty = parseInt(boxData[0].qty, 10) || 0;
+            const newQty = Math.max(0, currentQty - qtyToPick);
+
+            // 2. Оновлюємо фізичний залишок у inventory_boxes
+            const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                method: 'PATCH',
+                headers: HEADERS,
+                body: JSON.stringify({ qty: newQty })
+            });
+
+            if (!updateRes.ok) {
+                alert("Помилка при оновленні залишку на складі.");
+                return;
+            }
+
+            // 3. Записуємо в історію completed_movements
+            const itemObj = dbCartItems.find(i => i.id === itemId);
+            await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
+                method: 'POST',
+                headers: HEADERS,
+                body: JSON.stringify({
+                    box_name: boxName,
+                    product_code: productCode,
+                    product_name: itemObj ? itemObj.product_name : '',
+                    qty_moved: qtyToPick
+                })
+            });
+
+            // 4. Видаляємо рядок із активної корзини (order_items)
+            await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+
+            // 5. Перемальовуємо інтерфейс
+            await loadAllData();
+            renderCart();
+            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}!`);
+
+        } catch (e) {
+            console.error("Помилка при списанні рядка:", e);
+            alert("Сталася помилка мережі або бази даних.");
+        }
     }
 
     async function removeFromCart(itemId) {
@@ -451,24 +540,38 @@
         renderCart();
     }
 
-    async function completeCart() {
-        if (dbCartItems.length === 0) {
-            alert("Корзинка порожня!");
-            return;
+    // ЗАВАНТАЖЕННЯ ІСТОРІЇ
+    async function loadHistory() {
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>';
+
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/completed_movements?select=*&order=created_at.desc&limit=50`, { headers: HEADERS });
+            if (res.ok) {
+                const historyItems = await res.json();
+                tbody.innerHTML = '';
+
+                if (historyItems.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Історія порожня</td></tr>';
+                    return;
+                }
+
+                historyItems.forEach(item => {
+                    const dateFormatted = new Date(item.created_at).toLocaleString('uk-UA');
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><small>${dateFormatted}</small></td>
+                        <td><b>${item.box_name}</b></td>
+                        <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
+                        <td><span class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">${item.qty_moved} шт.</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            console.error("Помилка завантаження історії", e);
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Помилка завантаження</td></tr>';
         }
-
-        await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${activeOrderId}`, {
-            method: 'PATCH',
-            headers: HEADERS,
-            body: JSON.stringify({ status: 'completed' })
-        });
-
-        alert("Завдання успішно виконано та збережено в базу!");
-        
-        activeOrderId = null;
-        await ensureActiveOrder();
-        await loadAllData();
-        goToMenu();
     }
 
     initSystem();
