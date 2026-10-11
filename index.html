@@ -474,73 +474,43 @@
         });
     }
 
-  // ПОШТУЧНЕ ПІДТВЕРДЖЕННЯ (ГАЛОЧКА): СПИСАННЯ З СКЛАДУ + ЗАПИС В ІСТОРІЮ + ВИДАЛЕННЯ ПУСТОГО ЯЩИКА + ВИДАЛЕННЯ З КОРЗИНИ
-        async function pickCartItem(itemId, boxName, productCode, qtyToPick) {
-            try {
-                // 1. Отримуємо актуальний залишок у ящику з бази
-                const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
-                const boxData = await resBox.json();
+    // ПОШТУЧНЕ ПІДТВЕРДЖЕННЯ (ГАЛОЧКА): СПИСАННЯ З СКЛАДУ + ЗАПИС В ІСТОРІЮ + ВИДАЛЕННЯ ПУСТОГО ЯЩИКА + ВИДАЛЕННЯ З КОРЗИНИ
+    async function pickCartItem(itemId, boxName, productCode, qtyToPick) {
+        try {
+            // 1. Отримуємо актуальний залишок у ящику з бази
+            const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
+            const boxData = await resBox.json();
 
-                if (!boxData || boxData.length === 0) {
-                    alert("Помилка: ящик або товар не знайдено на складі!");
-                    return;
-                }
+            if (!boxData || boxData.length === 0) {
+                alert("Помилка: ящик або товар не знайдено на складі!");
+                return;
+            }
 
-                const currentQty = parseInt(boxData[0].qty, 10) || 0;
-                const newQty = Math.max(0, currentQty - qtyToPick);
+            const currentQty = parseInt(boxData[0].qty, 10) || 0;
+            const newQty = Math.max(0, currentQty - qtyToPick);
 
-                // 2. Якщо залишок став 0 — повністю видаляємо рядок ящика з inventory_boxes. Якщо більше 0 — оновлюємо кількість.
-                if (newQty === 0) {
-                    const deleteBoxRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
-                        method: 'DELETE',
-                        headers: HEADERS
-                    });
-                    if (!deleteBoxRes.ok) {
-                        alert("Помилка при видаленні пустого ящика з бази.");
-                        return;
-                    }
-                } else {
-                    const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
-                        method: 'PATCH',
-                        headers: HEADERS,
-                        body: JSON.stringify({ qty: newQty })
-                    });
-
-                    if (!updateRes.ok) {
-                        alert("Помилка при оновленні залишку на складі.");
-                        return;
-                    }
-                }
-
-                // 3. Записуємо в історію completed_movements
-                const itemObj = dbCartItems.find(i => i.id === itemId);
-                await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
-                    method: 'POST',
-                    headers: HEADERS,
-                    body: JSON.stringify({
-                        box_name: boxName,
-                        product_code: productCode,
-                        product_name: itemObj ? itemObj.product_name : '',
-                        qty_moved: qtyToPick
-                    })
-                });
-
-                // 4. Видаляємо рядок із активної корзини (order_items)
-                await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, {
+            // 2. Якщо залишок став 0 — повністю видаляємо рядок ящика з inventory_boxes. Якщо більше 0 — оновлюємо кількість.
+            if (newQty === 0) {
+                const deleteBoxRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
                     method: 'DELETE',
                     headers: HEADERS
                 });
+                if (!deleteBoxRes.ok) {
+                    alert("Помилка при видаленні пустого ящика з бази.");
+                    return;
+                }
+            } else {
+                const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                    method: 'PATCH',
+                    headers: HEADERS,
+                    body: JSON.stringify({ qty: newQty })
+                });
 
-                // 5. Перемальовуємо інтерфейс
-                await loadAllData();
-                renderCart();
-                alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}! (Ящик видалено через нульовий залишок)`);
-
-            } catch (e) {
-                console.error("Помилка при списанні рядка:", e);
-                alert("Сталася помилка мережі або бази даних.");
+                if (!updateRes.ok) {
+                    alert("Помилка при оновленні залишку на складі.");
+                    return;
+                }
             }
-        }
 
             // 3. Записуємо в історію completed_movements
             const itemObj = dbCartItems.find(i => i.id === itemId);
@@ -564,7 +534,7 @@
             // 5. Перемальовуємо інтерфейс
             await loadAllData();
             renderCart();
-            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}!`);
+            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}! (Ящик видалено через нульовий залишок)`);
 
         } catch (e) {
             console.error("Помилка при списанні рядка:", e);
