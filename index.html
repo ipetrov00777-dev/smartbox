@@ -6,7 +6,7 @@
     <title>SmartBox - Складський облік (DB Sync)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
+        .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
         
         .screen { display: none; }
         .screen.active { display: block; }
@@ -27,7 +27,6 @@
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
         input, select { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #1a73e8; border-radius: 6px; font-size: 18px; outline: none; }
-        button.action-btn { background: #1a73e8; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; cursor: pointer; }
         
         .product-info-box { background: #e8f0fe; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #1a73e8; }
         .product-info-box h3 { margin: 0 0 8px 0; color: #1a73e8; font-size: 18px; }
@@ -40,14 +39,16 @@
         
         .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
         
-        .global-cart-btn { margin-top: 15px; background: #28a745; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.2s; }
-        .global-cart-btn:hover:not(:disabled) { background: #218838; cursor: pointer; }
+        .global-cart-btn { margin-top: 15px; background: #28a745; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.2s; cursor: pointer; }
+        .global-cart-btn:hover { background: #218838; }
         .global-cart-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
         
         .pick-row-btn { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: bold; }
         .pick-row-btn:hover { background: #218838; }
         .remove-row-btn { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
         .remove-row-btn:hover { background: #c82333; }
+        
+        .badge-bd { color: #d93025; font-weight: bold; background: #fce8e6; padding: 2px 6px; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -161,11 +162,49 @@
         </div>
     </div>
 
+    <!-- 5. РАЗДЕЛ: ПРИХОД (НЕПРЕРЫВНОЕ СКАНИРОВАНИЕ) -->
+    <div id="arrivalSection" class="screen">
+        <div class="header-bar">
+            <h2>📥 Сканер (Приход)</h2>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        <div class="card">
+            <div class="form-group">
+                <label for="arrivalBoxInput">1. Скануйте ящик (напр. Box-12+):</label>
+                <input type="text" id="arrivalBoxInput" placeholder="Скануйте ящик..." style="background: #e8f0fe;">
+            </div>
+            <div class="form-group">
+                <label for="arrivalScanInput">2. Потокове сканування товару:</label>
+                <input type="text" id="arrivalScanInput" placeholder="Скануйте товар сюди..." disabled>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: #e2f0cb; padding: 10px 15px; border-radius: 6px;">
+                <b>В ящику: <span id="arrivalBoxNameDisplay">—</span></b>
+                <b>Всього відскановано: <span id="arrivalCountDisplay">0</span></b>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Журнал приходу поточної сесії</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Штрихкод / Сканування</th>
+                        <th>Ящик</th>
+                        <th>Код товару</th>
+                        <th>Найменування</th>
+                    </tr>
+                </thead>
+                <tbody id="arrivalTableBody">
+                    <tr><td colspan="4" style="text-align: center; color: #777;">Відскануйте ящик і починайте сканування товару</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Заглушки -->
     <div id="podsortSection" class="screen"><div class="header-bar"><h2>🔄 Підсорт</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
     <div id="shelfSection" class="screen"><div class="header-bar"><h2>📍 ШТ. на полке</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
     <div id="photoSection" class="screen"><div class="header-bar"><h2>📷 Фото</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
-    <div id="arrivalSection" class="screen"><div class="header-bar"><h2>📥 Приход</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
 
 </div>
 
@@ -187,6 +226,10 @@
     let currentScannedMatches = [];
     let currentProductName = '';
     let currentProductCode = '';
+
+    // Переменные сессии прихода
+    let currentArrivalBox = '';
+    let sessionArrivalItems = [];
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -218,6 +261,18 @@
         }
         if (screenId === 'historySection') {
             loadHistory();
+        }
+        if (screenId === 'arrivalSection') {
+            loadAllData();
+            currentArrivalBox = '';
+            sessionArrivalItems = [];
+            document.getElementById('arrivalBoxInput').value = '';
+            document.getElementById('arrivalScanInput').value = '';
+            document.getElementById('arrivalScanInput').setAttribute('disabled', 'true');
+            document.getElementById('arrivalBoxNameDisplay').innerText = '—';
+            document.getElementById('arrivalCountDisplay').innerText = '0';
+            renderArrivalTable();
+            setTimeout(() => document.getElementById('arrivalBoxInput').focus(), 100);
         }
     }
 
@@ -296,7 +351,6 @@
         
         const matches = globalStock.filter(item => item.product_code.toLowerCase() === currentProductCode.toLowerCase());
 
-        // Сортировка FIFO: сначала самые старые (по дате arrival_date)
         matches.sort((a, b) => {
             const dateA = a.arrival_date ? new Date(a.arrival_date) : new Date(0);
             const dateB = b.arrival_date ? new Date(b.arrival_date) : new Date(0);
@@ -597,6 +651,143 @@
             console.error("Помилка завантаження історії", e);
             tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Помилка завантаження</td></tr>';
         }
+    }
+
+    // ЛОГИКА НЕПРЕРЫВНОГО ПРИХОДА СО СКАНЕРОМ
+    const arrivalBoxInput = document.getElementById('arrivalBoxInput');
+    if (arrivalBoxInput) {
+        arrivalBoxInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const boxName = arrivalBoxInput.value.trim();
+                if (boxName) {
+                    currentArrivalBox = boxName;
+                    document.getElementById('arrivalBoxNameDisplay').innerText = boxName;
+                    const scanField = document.getElementById('arrivalScanInput');
+                    scanField.removeAttribute('disabled');
+                    scanField.focus();
+                }
+            }
+        });
+    }
+
+    const arrivalScanInput = document.getElementById('arrivalScanInput');
+    if (arrivalScanInput) {
+        arrivalScanInput.addEventListener('keypress', async function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const scannedCode = arrivalScanInput.value.trim();
+                arrivalScanInput.value = ''; // очищаем мгновенно для следующего сканирования без остановок
+
+                if (!scannedCode || !currentArrivalBox) return;
+
+                await processContinuousArrival(scannedCode);
+            }
+        });
+    }
+
+    async function processContinuousArrival(scannedCode) {
+        const codeLower = scannedCode.toLowerCase();
+
+        // Проверяем, есть ли товар в базе (по product_code или barcode)
+        const prodInfo = globalProducts.find(p => 
+            (p.product_code && p.product_code.toLowerCase() === codeLower) || 
+            (p.barcode && p.barcode.toLowerCase() === codeLower)
+        );
+
+        let finalProductCode = '';
+        let finalProductName = '';
+
+        if (prodInfo) {
+            finalProductCode = prodInfo.product_code;
+            finalProductName = prodInfo.product_name || 'Назва не вказана';
+        } else {
+            // Если товара нет — помечаем меткой БД_?
+            finalProductCode = 'БД_?';
+            finalProductName = 'БД_?';
+            
+            // Также автоматически создаем пустую карточку в справочнике products с таким штрихкодом/кодом, чтобы не нарушать целостность базы
+            try {
+                await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({
+                        product_code: scannedCode,
+                        product_name: 'БД_?'
+                    })
+                });
+                finalProductCode = scannedCode;
+            } catch (err) {
+                console.error("Не вдалося зареєструвати новий товар", err);
+            }
+        }
+
+        // Добавляем в inventory_boxes (+1 шт) или обновляем количество
+        try {
+            const checkBoxRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
+            const boxData = await checkBoxRes.json();
+
+            if (boxData && boxData.length > 0) {
+                const currentQty = parseInt(boxData[0].qty, 10) || 0;
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
+                    method: 'PATCH',
+                    headers: HEADERS,
+                    body: JSON.stringify({ qty: currentQty + 1 })
+                });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({
+                        box_name: currentArrivalBox,
+                        product_code: finalProductCode,
+                        qty: 1,
+                        arrival_date: new Date().toISOString()
+                    })
+                });
+            }
+
+            // Добавляем запись в локальный журнал сессии
+            sessionArrivalItems.unshift({
+                scanned: scannedCode,
+                box: currentArrivalBox,
+                code: finalProductCode,
+                name: finalProductName,
+                isNew: !prodInfo
+            });
+
+            await loadAllData();
+            renderArrivalTable();
+
+        } catch (e) {
+            console.error("Помилка при потоковому приході:", e);
+        }
+    }
+
+    function renderArrivalTable() {
+        const tbody = document.getElementById('arrivalTableBody');
+        tbody.innerHTML = '';
+
+        document.getElementById('arrivalCountDisplay').innerText = sessionArrivalItems.length;
+
+        if (sessionArrivalItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #777;">Очікування сканування товарів...</td></tr>`;
+            return;
+        }
+
+        sessionArrivalItems.forEach(item => {
+            const tr = document.createElement('tr');
+            const codeDisplay = item.isNew ? `<span class="badge-bd">БД_?</span> (${item.code})` : `<b>${item.code}</b>`;
+            const nameDisplay = item.isNew ? `<span class="badge-bd">БД_?</span>` : item.name;
+
+            tr.innerHTML = `
+                <td><code>${item.scanned}</code></td>
+                <td><b>${item.box}</b></td>
+                <td>${codeDisplay}</td>
+                <td>${nameDisplay}</td>
+            `;
+            tbody.appendChild(tr);
+        });
     }
 
     initSystem();
