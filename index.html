@@ -656,6 +656,15 @@
     // ЛОГИКА НЕПРЕРЫВНОГО ПРИХОДА СО СКАНЕРОМ
     const arrivalBoxInput = document.getElementById('arrivalBoxInput');
     if (arrivalBoxInput) {
+        // Автоматическая очистка поля при клике или повторном фокусе для сканирования нового ящика
+        arrivalBoxInput.addEventListener('focus', function() {
+            arrivalBoxInput.value = '';
+            currentArrivalBox = '';
+            document.getElementById('arrivalBoxNameDisplay').innerText = '—';
+            document.getElementById('arrivalScanInput').setAttribute('disabled', 'true');
+            document.getElementById('arrivalScanInput').value = '';
+        });
+
         arrivalBoxInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -689,7 +698,6 @@
     async function processContinuousArrival(scannedCode) {
         const codeLower = scannedCode.toLowerCase();
 
-        // Проверяем, есть ли товар в базе (по product_code или barcode)
         const prodInfo = globalProducts.find(p => 
             (p.product_code && p.product_code.toLowerCase() === codeLower) || 
             (p.barcode && p.barcode.toLowerCase() === codeLower)
@@ -702,11 +710,9 @@
             finalProductCode = prodInfo.product_code;
             finalProductName = prodInfo.product_name || 'Назва не вказана';
         } else {
-            // Если товара нет — помечаем меткой БД_?
             finalProductCode = 'БД_?';
             finalProductName = 'БД_?';
             
-            // Также автоматически создаем пустую карточку в справочнике products с таким штрихкодом/кодом, чтобы не нарушать целостность базы
             try {
                 await fetch(`${SUPABASE_URL}/rest/v1/products`, {
                     method: 'POST',
@@ -722,7 +728,6 @@
             }
         }
 
-        // Добавляем в inventory_boxes (+1 шт) или обновляем количество
         try {
             const checkBoxRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const boxData = await checkBoxRes.json();
@@ -747,7 +752,6 @@
                 });
             }
 
-            // Добавляем запись в локальный журнал сессии
             sessionArrivalItems.unshift({
                 scanned: scannedCode,
                 box: currentArrivalBox,
