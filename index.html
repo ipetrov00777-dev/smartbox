@@ -199,7 +199,6 @@
         window.scrollTo(0, 0);
         
         if (screenId === 'infoSection') {
-            // Очищаем предыдущие результаты при каждом открытии раздела «Інформація»
             currentProductCode = '';
             currentProductName = '';
             currentScannedMatches = [];
@@ -332,4 +331,274 @@
             let stockHtml = `${item.originalQty} шт.`;
             if (inCartQty > 0) {
                 const remainder = item.originalQty - inCartQty;
-                stockHtml =
+                stockHtml = `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${remainder}</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${item.box_name}</b></td>
+                <td><span class="total-badge" id="availBadge_${idx}">${stockHtml}</span></td>
+                <td>
+                    <input type="number" id="${inputId}" class="qty-input-table" value="0" min="0" max="${availableForInput}" oninput="handleQtyInput(${idx}, ${availableForInput}, ${item.originalQty}, ${inCartQty})">
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        updateSummaryTotals();
+    }
+
+    function handleQtyInput(idx, maxVal, originalQty, inCartQty) {
+        const input = document.getElementById(`qtyInput_${idx}`);
+        let val = parseInt(input.value, 10);
+
+        if (isNaN(val) || val < 0) {
+            val = 0;
+            input.value = 0;
+        } else if (val > maxVal) {
+            val = maxVal;
+            input.value = maxVal;
+        }
+
+        const totalWithCurrentInput = inCartQty + val;
+        let stockHtml = `${originalQty} шт.`;
+        if (totalWithCurrentInput > 0) {
+            const remainder = originalQty - totalWithCurrentInput;
+            stockHtml = `${originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${remainder}</span>`;
+        }
+
+        document.getElementById(`availBadge_${idx}`).innerHTML = stockHtml;
+        updateSummaryTotals();
+    }
+
+    function updateSummaryTotals() {
+        let totalOriginalStock = 0;
+        let totalAlreadyInCart = 0;
+        let totalCurrentInput = 0;
+        let hasAnyQty = false;
+
+        currentScannedMatches.forEach((item, idx) => {
+            const cartItems = dbCartItems.filter(c => c.box_name === item.box_name && c.product_code.toLowerCase() === currentProductCode.toLowerCase());
+            const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
+            
+            const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
+
+            totalOriginalStock += item.originalQty;
+            totalAlreadyInCart += inCartQty;
+            totalCurrentInput += inputVal;
+
+            if (inputVal > 0) {
+                hasAnyQty = true;
+            }
+        });
+
+        const totalReservedNow = totalAlreadyInCart + totalCurrentInput;
+        const totalRemaining = totalOriginalStock - totalReservedNow;
+
+        const totalStockDisplay = (totalReservedNow > 0)
+            ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`
+            : `${totalOriginalStock} шт.`;
+
+        document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
+        document.getElementById('resTotalQty').innerText = `${totalReservedNow} шт.`;
+
+        const globalBtn = document.getElementById('globalCartBtn');
+        if (hasAnyQty) {
+            globalBtn.removeAttribute('disabled');
+        } else {
+            globalBtn.setAttribute('disabled', 'true');
+        }
+    }
+
+    async function addAllToCart() {
+        if (!activeOrderId) await ensureActiveOrder();
+
+        const insertPromises = [];
+
+        currentScannedMatches.forEach((item, idx) => {
+            const inputId = `qtyInput_${idx}`;
+            const inputElement = document.getElementById(inputId);
+            const qtyToReserve = parseInt(inputElement.value, 10) || 0;
+
+            if (qtyToReserve > 0) {
+                const p = fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({
+                        order_id: activeOrderId,
+                        box_name: item.box_name,
+                        product_code: currentProductCode,
+                        product_name: currentProductName,
+                        qty_reserved: qtyToReserve
+                    })
+                });
+                insertPromises.push(p);
+            }
+        });
+
+        if (insertPromises.length > 0) {
+            await Promise.all(insertPromises);
+            await loadAllData();
+            renderLocationsTable();
+            alert("Товари успішно додано в корзинку!");
+        }
+    }
+
+    function updateCartBadge() {
+        const totalCartItems = dbCartItems.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
+        document.getElementById('cartBadge').innerText = totalCartItems;
+    }
+
+    async function renderCart() {
+        await loadAllData();
+        const tbody = document.getElementById('cartTableBody');
+        tbody.innerHTML = '';
+
+        if (dbCartItems.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
+            return;
+        }
+
+        const sortedItems = [...dbCartItems].sort((a, b) => {
+            return a.box_name.localeCompare(b.box_name, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        sortedItems.forEach((item) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${item.box_name}</b></td>
+                <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
+                <td><span class="total-badge">${item.qty_reserved} шт.</span></td>
+                <td>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved})" title="Підтвердити і списати">✓</button>
+                        <button class="remove-row-btn" onclick="removeFromCart('${item.id}')" title="Видалити">✕</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function pickCartItem(itemId, boxName, productCode, qtyToPick) {
+        try {
+            const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
+            const boxData = await resBox.json();
+
+            if (!boxData || boxData.length === 0) {
+                alert("Помилка: ящик або товар не знайдено на складі!");
+                return;
+            }
+
+            const currentQty = parseInt(boxData[0].qty, 10) || 0;
+            const newQty = Math.max(0, currentQty - qtyToPick);
+
+            if (newQty === 0) {
+                const deleteBoxRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                    method: 'DELETE',
+                    headers: HEADERS
+                });
+                if (!deleteBoxRes.ok) {
+                    alert("Помилка при видаленні пустого ящика з бази.");
+                    return;
+                }
+            } else {
+                const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                    method: 'PATCH',
+                    headers: HEADERS,
+                    body: JSON.stringify({ qty: newQty })
+                });
+
+                if (!updateRes.ok) {
+                    alert("Помилка при оновленні залишку на складі.");
+                    return;
+                }
+            }
+
+            const itemObj = dbCartItems.find(i => i.id === itemId);
+            await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
+                method: 'POST',
+                headers: HEADERS,
+                body: JSON.stringify({
+                    box_name: boxName,
+                    product_code: productCode,
+                    product_name: itemObj ? itemObj.product_name : '',
+                    qty_moved: qtyToPick
+                })
+            });
+
+            await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+
+            await loadAllData();
+            renderCart();
+            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}! (Ящик видалено через нульовий залишок)`);
+
+        } catch (e) {
+            console.error("Помилка при списанні рядка:", e);
+            alert("Сталася помилка мережі або бази даних.");
+        }
+    }
+
+    async function removeFromCart(itemId) {
+        await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, {
+            method: 'DELETE',
+            headers: HEADERS
+        });
+        await loadAllData();
+        renderCart();
+    }
+
+    async function loadHistory() {
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>';
+
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/completed_manager?select=*&order=created_at.desc&limit=50`, { headers: HEADERS });
+            // ... (остальной корректный код истории)
+        } catch (e) {
+            console.error("Помилка завантаження історії", e);
+        }
+    }
+
+    // Загрузка истории правильно:
+    async function loadHistory() {
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>';
+
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/completed_movements?select=*&order=created_at.desc&limit=50`, { headers: HEADERS });
+            if (res.ok) {
+                const historyItems = await res.json();
+                tbody.innerHTML = '';
+
+                if (historyItems.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Історія порожня</td></tr>';
+                    return;
+                }
+
+                historyItems.forEach(item => {
+                    const dateFormatted = new Date(item.created_at).toLocaleString('uk-UA');
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><small>${dateFormatted}</small></td>
+                        <td><b>${item.box_name}</b></td>
+                        <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
+                        <td><span class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">${item.qty_moved} шт.</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            console.error("Помилка завантаження історії", e);
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Помилка завантаження</td></tr>';
+        }
+    }
+
+    initSystem();
+</script>
+
+</body>
+</html>
