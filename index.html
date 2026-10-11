@@ -96,7 +96,7 @@
                 <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
             </div>
 
-            <p style="margin-bottom: 5px;"><b>Місця зберігання на складі:</b></p>
+            <p style="margin-bottom: 5px;"><b>Місця зберігання на складі (FIFO):</b></p>
             <table>
                 <thead>
                     <tr>
@@ -296,6 +296,13 @@
         
         const matches = globalStock.filter(item => item.product_code.toLowerCase() === currentProductCode.toLowerCase());
 
+        // Сортировка FIFO: сначала самые старые (по дате arrival_date)
+        matches.sort((a, b) => {
+            const dateA = a.arrival_date ? new Date(a.arrival_date) : new Date(0);
+            const dateB = b.arrival_date ? new Date(b.arrival_date) : new Date(0);
+            return dateA - dateB;
+        });
+
         document.getElementById('resProductName').innerText = currentProductName;
         document.getElementById('resProductCode').innerText = currentProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
@@ -335,7 +342,6 @@
                 stockHtml = `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${remainder}</span>`;
             }
 
-            // Форматируем дату прихода (arrival_date) под украинский формат
             let arrivalDateFormatted = '—';
             if (item.arrival_date) {
                 const d = new Date(item.arrival_date);
