@@ -74,7 +74,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.3</div>
+        <div class="app-version">SmartBox v1.4</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -288,14 +288,39 @@
         updateCartBadge();
     }
 
+    function resetInfoSection() {
+        currentProductCode = '';
+        currentProductName = '';
+        currentScannedMatches = [];
+        
+        const resultCard = document.getElementById('productResultCard');
+        if (resultCard) resultCard.style.display = 'none';
+        
+        const scanInput = document.getElementById('scanInput');
+        if (scanInput) scanInput.value = '';
+
+        const tbody = document.getElementById('resLocationsBody');
+        if (tbody) tbody.innerHTML = '';
+
+        const totalStock = document.getElementById('resTotalStock');
+        if (totalStock) totalStock.innerText = '0 шт.';
+
+        const totalQty = document.getElementById('resTotalQty');
+        if (totalQty) totalQty.innerText = '0 шт.';
+    }
+
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
         window.scrollTo(0, 0);
         
         if (screenId === 'infoSection') {
+            resetInfoSection();
             loadAllData();
-            setTimeout(() => document.getElementById('scanInput').focus(), 100);
+            setTimeout(() => {
+                const scanInput = document.getElementById('scanInput');
+                if (scanInput) scanInput.focus();
+            }, 100);
         }
         if (screenId === 'cartSection') {
             renderCart();
@@ -326,8 +351,14 @@
         }
     }
 
-    function goToMenu() { showScreen('menuScreen'); }
-    function openSection(sectionId) { showScreen(sectionId); }
+    function goToMenu() { 
+        resetInfoSection();
+        showScreen('menuScreen'); 
+    }
+    
+    function openSection(sectionId) { 
+        showScreen(sectionId); 
+    }
 
     async function ensureActiveOrder() {
         try {
@@ -656,7 +687,8 @@
             arrivalBoxInput.value = '';
             currentArrivalBox = '';
             document.getElementById('arrivalBoxNameDisplay').innerText = '—';
-            document.getElementById('arrivalScanInput कुलकर्णी').setAttribute?.('disabled', 'true');
+            const scanField = document.getElementById('arrivalScanInput');
+            if (scanField) scanField.setAttribute('disabled', 'true');
         });
         arrivalBoxInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -826,17 +858,15 @@
             const capacity = parseInt(plano.shelf_capacity, 10) || 0;
             if (capacity <= 0) return;
 
-            // Шукаємо залишки на складі для цього товару (відсортовані за FIFO)
             const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === code.toLowerCase());
             stockMatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
             const totalWarehouseQty = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
-            if (totalWarehouseQty <= 0) return; // нема на складі — нема чого підсортиховувати
+            if (totalWarehouseQty <= 0) return;
 
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : '';
 
-            // Формуємо рекомендацію по FIFO (беремо з найстарішого ящика)
             let recommendationHtml = '';
             let allocated = 0;
 
