@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox - Складський облік (DB Sync)</title>
+    <title>SmartBox v1.5 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -18,8 +18,8 @@
         .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
         .menu-btn { background: #fff; border: 2px solid #1a73e8; color: #1a73e8; padding: 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; position: relative; }
         .menu-btn:hover { background: #1a73e8; color: #fff; }
-        .menu-btn.full-width { grid-column: span 2; background: #1a73e8; color: #fff; }
-        .menu-btn.full-width:hover { background: #1557b0; }
+        .menu-btn.full-width { grid-column: span 2; background: #28a745; color: #fff; border-color: #28a745; }
+        .menu-btn.full-width:hover { background: #218838; }
         
         .badge-count { position: absolute; top: 10px; right: 10px; background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
 
@@ -48,7 +48,10 @@
         .remove-row-btn { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
         .remove-row-btn:hover { background: #c82333; }
         
-        .badge-bd { color: #d93025; font-weight: bold; background: #fce8e6; padding: 2px 6px; border-radius: 4px; }
+        .sync-stamp { font-size: 12px; color: #555; font-weight: normal; margin-top: 4px; }
+        
+        tr.missing-data-row { background-color: #ffe6e6 !important; color: #d93025 !important; }
+        tr.missing-data-row td { border-color: #f5c6cb !important; }
 
         .app-version { text-align: center; margin-top: 25px; color: #888; font-size: 13px; font-weight: bold; }
     </style>
@@ -66,15 +69,16 @@
         <div class="menu-grid">
             <button class="menu-btn" onclick="openSection('infoSection')">ℹ Інформація</button>
             <button class="menu-btn" onclick="openSection('podsortSection')">🔄 Підсорт</button>
+            <button class="menu-btn" style="background: #e8f0fe;" onclick="openSection('warehouseSection')">📦 Склад</button>
             <button class="menu-btn" onclick="openSection('shelfSection')">📍 ШТ. на полке</button>
             <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
             <button class="menu-btn" onclick="openSection('historySection')">📜 Історія</button>
             <button class="menu-btn" onclick="openSection('arrivalSection')">📥 Приход</button>
-            <button class="menu-btn full-width" style="background: #28a745; border-color: #28a745;" onclick="openSection('cartSection')">
+            <button class="menu-btn full-width" onclick="openSection('cartSection')">
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.4</div>
+        <div class="app-version">SmartBox v1.5</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -118,14 +122,66 @@
         </div>
     </div>
 
-    <!-- 3. РОЗДІЛ: КОРЗИНКА -->
+    <!-- 3. РОЗДІЛ: СКЛАД (НОВИЙ) -->
+    <div id="warehouseSection" class="screen">
+        <div class="header-bar">
+            <div>
+                <h2 style="margin: 0;">📦 Товари на складі</h2>
+                <div id="whSyncStamp" class="sync-stamp">Синхронізація: —</div>
+            </div>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        <div class="card">
+            <p><small style="color: #666;">Повний список товарів, що зберігаються в ящиках на складі, з деталізацією та метками балансу.</small></p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Код / Товар</th>
+                        <th>Ящики (К-сть / Дата)</th>
+                        <th>Метка остатков</th>
+                    </tr>
+                </thead>
+                <tbody id="warehouseTableBody">
+                    <tr><td colspan="3" style="text-align: center; color: #777;">Завантаження товарів...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 4. РОЗДІЛ: ПІДСОРТ (ОНОВЛЕНИЙ ЗА ФОРМУЛОЮ ТЗ = Заг - Скл) -->
+    <div id="podsortSection" class="screen">
+        <div class="header-bar">
+            <div>
+                <h2 style="margin: 0;">🔄 Підсорт (FIFO)</h2>
+                <div id="podsortSyncStamp" class="sync-stamp">Оновлено: —</div>
+            </div>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        <div class="card">
+            <p><small style="color: #666;">Розрахунок дефіциту в торговім залі: ТЗ (Заг - Скл) порівнюється з нормою полки (N*).</small></p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Код / Назва</th>
+                        <th>Норма</th>
+                        <th>Рекомендація (Ящик / К-сть / Дата)</th>
+                    </tr>
+                </thead>
+                <tbody id="podsortTableBody">
+                    <tr><td colspan="3" style="text-align: center; color: #777;">Формування підсорту...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 5. РОЗДІЛ: КОРЗИНКА -->
     <div id="cartSection" class="screen">
         <div class="header-bar">
             <h2>🛒 Корзинка збору товару</h2>
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         <div class="card">
-            <h3>Завдання на збір у зал (поштучне підтвердження)</h3>
+            <h3>Завдання на збір у зал</h3>
             <table>
                 <thead>
                     <tr>
@@ -142,7 +198,7 @@
         </div>
     </div>
 
-    <!-- 4. РОЗДІЛ: ІСТОРІЯ ВИНОСІВ -->
+    <!-- 6. РОЗДІЛ: ІСТОРІЯ -->
     <div id="historySection" class="screen">
         <div class="header-bar">
             <h2>📜 Історія виносів</h2>
@@ -165,7 +221,7 @@
         </div>
     </div>
 
-    <!-- 5. РОЗДІЛ: ПРИХОД -->
+    <!-- 7. РОЗДІЛ: ПРИХОД -->
     <div id="arrivalSection" class="screen">
         <div class="header-bar">
             <h2>📥 Сканер (Приход)</h2>
@@ -182,7 +238,7 @@
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: #e2f0cb; padding: 10px 15px; border-radius: 6px;">
                 <b>В ящику: <span id="arrivalBoxNameDisplay">—</span></b>
-                <b>Всього відскановано: <span id="arrivalCountDisplay">0</span></b>
+                <b>Відскановано: <span id="arrivalCountDisplay">0</span></b>
             </div>
         </div>
 
@@ -204,7 +260,7 @@
         </div>
     </div>
 
-    <!-- 6. РОЗДІЛ: ШТ. НА ПОЛКЕ (PLANOGRAMS) -->
+    <!-- 8. РОЗДІЛ: ШТ. НА ПОЛКЕ -->
     <div id="shelfSection" class="screen">
         <div class="header-bar">
             <h2>📍 ШТ. на полке (Нормативи)</h2>
@@ -230,29 +286,6 @@
         </div>
     </div>
 
-    <!-- 7. РОЗДІЛ: ПІДСОРТ (FIFO РОЗРАХУНОК) -->
-    <div id="podsortSection" class="screen">
-        <div class="header-bar">
-            <h2>🔄 Підсорт (Рекомендації FIFO)</h2>
-            <button class="back-btn" onclick="goToMenu()">Назад</button>
-        </div>
-        <div class="card">
-            <p><small style="color: #666;">Аналіз товарів, де місткість полиці (`shelf_capacity`) більша за залишок, із підказкою найстаріших ящиків для поповнення.</small></p>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Код / Назва</th>
-                        <th>Норма</th>
-                        <th>Рекомендація (Ящик / К-сть / Дата)</th>
-                    </tr>
-                </thead>
-                <tbody id="podsortTableBody">
-                    <tr><td colspan="3" style="text-align: center; color: #777;">Завантаження аналітики...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
     <!-- Заглушка для фото -->
     <div id="photoSection" class="screen"><div class="header-bar"><h2>📷 Фото</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
 
@@ -274,11 +307,13 @@
     let globalStock = [];
     let globalProducts = [];
     let globalPlanograms = [];
+    let googleStockData = [];
+    let lastSyncTime = null;
+
     let currentScannedMatches = [];
     let currentProductName = '';
     let currentProductCode = '';
 
-    // Змінні сесії приходу
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
 
@@ -292,19 +327,14 @@
         currentProductCode = '';
         currentProductName = '';
         currentScannedMatches = [];
-        
         const resultCard = document.getElementById('productResultCard');
         if (resultCard) resultCard.style.display = 'none';
-        
         const scanInput = document.getElementById('scanInput');
         if (scanInput) scanInput.value = '';
-
         const tbody = document.getElementById('resLocationsBody');
         if (tbody) tbody.innerHTML = '';
-
         const totalStock = document.getElementById('resTotalStock');
         if (totalStock) totalStock.innerText = '0 шт.';
-
         const totalQty = document.getElementById('resTotalQty');
         if (totalQty) totalQty.innerText = '0 шт.';
     }
@@ -317,17 +347,16 @@
         if (screenId === 'infoSection') {
             resetInfoSection();
             loadAllData();
-            setTimeout(() => {
-                const scanInput = document.getElementById('scanInput');
-                if (scanInput) scanInput.focus();
-            }, 100);
+            setTimeout(() => document.getElementById('scanInput')?.focus(), 100);
         }
-        if (screenId === 'cartSection') {
-            renderCart();
+        if (screenId === 'warehouseSection') {
+            loadAllData().then(() => renderWarehouseScreen());
         }
-        if (screenId === 'historySection') {
-            loadHistory();
+        if (screenId === 'podsortSection') {
+            loadAllData().then(() => renderPodsort());
         }
+        if (screenId === 'cartSection') renderCart();
+        if (screenId === 'historySection') loadHistory();
         if (screenId === 'arrivalSection') {
             loadAllData();
             currentArrivalBox = '';
@@ -338,16 +367,13 @@
             document.getElementById('arrivalBoxNameDisplay').innerText = '—';
             document.getElementById('arrivalCountDisplay').innerText = '0';
             renderArrivalTable();
-            setTimeout(() => document.getElementById('arrivalBoxInput').focus(), 100);
+            setTimeout(() => document.getElementById('arrivalBoxInput')?.focus(), 100);
         }
         if (screenId === 'shelfSection') {
             loadAllData();
             document.getElementById('shelfResultCard').style.display = 'none';
             document.getElementById('shelfScanInput').value = '';
-            setTimeout(() => document.getElementById('shelfScanInput').focus(), 100);
-        }
-        if (screenId === 'podsortSection') {
-            renderPodsort();
+            setTimeout(() => document.getElementById('shelfScanInput')?.focus(), 100);
         }
     }
 
@@ -355,10 +381,7 @@
         resetInfoSection();
         showScreen('menuScreen'); 
     }
-    
-    function openSection(sectionId) { 
-        showScreen(sectionId); 
-    }
+    function openSection(sectionId) { showScreen(sectionId); }
 
     async function ensureActiveOrder() {
         try {
@@ -370,42 +393,195 @@
                 const newOrderRes = await fetch(`${SUPABASE_URL}/rest/v1/orders`, {
                     method: 'POST',
                     headers: HEADERS,
-                    body: JSON.stringify({
-                        order_number: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
-                        status: 'draft'
-                    })
+                    body: JSON.stringify({ order_number: 'ORD-' + Math.floor(1000 + Math.random() * 9000), status: 'draft' })
                 });
                 const newOrders = await newOrderRes.json();
-                if (newOrders && newOrders.length > 0) {
-                    activeOrderId = newOrders[0].id;
-                }
+                if (newOrders && newOrders.length > 0) activeOrderId = newOrders[0].id;
             }
-        } catch (e) {
-            console.error("Помилка ініціалізації замовлення", e);
-        }
+        } catch (e) { console.error("Помилка замовлення:", e); }
     }
 
     async function loadAllData() {
         try {
-            const [stockRes, prodRes, cartRes, planoRes] = await Promise.all([
+            const [stockRes, prodRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
                 fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: HEADERS }),
                 activeOrderId ? fetch(`${SUPABASE_URL}/rest/v1/order_items?order_id=eq.${activeOrderId}&select=*`, { headers: HEADERS }) : Promise.resolve({ ok: false }),
-                fetch(`${SUPABASE_URL}/rest/v1/planograms?select=*`, { headers: HEADERS })
+                fetch(`${SUPABASE_URL}/rest/v1/planograms?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/google_stock?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/system_settings?key=eq.last_google_sync&select=*`, { headers: HEADERS })
             ]);
             
             if (stockRes.ok) globalStock = await stockRes.json();
             if (prodRes.ok) globalProducts = await prodRes.json();
             if (cartRes.ok) dbCartItems = await cartRes.json();
             if (planoRes.ok) globalPlanograms = await planoRes.json();
+            if (gStockRes.ok) googleStockData = await gStockRes.json();
+            
+            if (settingsRes.ok) {
+                const settings = await settingsRes.json();
+                if (settings && settings.length > 0) lastSyncTime = settings[0].value;
+            }
 
             updateCartBadge();
-        } catch (e) {
-            console.error("Помилка завантаження даних", e);
+            updateSyncStamps();
+        } catch (e) { console.error("Помилка завантаження даних:", e); }
+    }
+
+    function updateSyncStamps() {
+        let stampText = "Синхронізація: —";
+        if (lastSyncTime) {
+            const d = new Date(lastSyncTime);
+            stampText = `Синхронізація Google: ${d.toLocaleDateString('uk-UA')} ${d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
+        }
+        const whElem = document.getElementById('whSyncStamp');
+        if (whElem) whElem.innerText = stampText;
+        const psElem = document.getElementById('podsortSyncStamp');
+        if (psElem) psElem.innerText = stampText;
+    }
+
+    // --- ЕКРАН «СКЛАД» ---
+    function renderWarehouseScreen() {
+        const tbody = document.getElementById('warehouseTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        // Группируем остатки inventory_boxes по product_code
+        const groupedWarehouse = {};
+        globalStock.forEach(item => {
+            const code = item.product_code;
+            if (!groupedWarehouse[code]) groupedWarehouse[code] = [];
+            groupedWarehouse[code].push(item);
+        });
+
+        const codes = Object.keys(groupedWarehouse);
+        if (codes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">На складі немає товарів у ящиках</td></tr>';
+            return;
+        }
+
+        codes.forEach(code => {
+            const items = groupedWarehouse[code];
+            items.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+
+            const totalSkl = items.reduce((sum, i) => sum + (parseInt(i.qty, 10) || 0), 0);
+            
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const prodName = prod ? prod.product_name : 'Назва не вказана';
+
+            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === code.toLowerCase());
+            const hasZag = (gItem && gItem.stock !== undefined && gItem.stock !== null);
+            const totalZag = hasZag ? parseInt(gItem.stock, 10) : null;
+
+            const plano = globalPlanograms.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const hasNorm = (plano && plano.shelf_capacity !== undefined && plano.shelf_capacity !== null);
+            const normVal = hasNorm ? plano.shelf_capacity : null;
+
+            let tzVal = '?';
+            if (hasZag) {
+                tzVal = totalZag - totalSkl;
+            }
+
+            const zagStr = hasZag ? `${totalZag}шт.` : '?';
+            const tzStr = hasZag ? `${tzVal}шт.` : '?';
+            const sklStr = `${totalSkl}шт.`;
+            const normStr = hasNorm ? `(${normVal}*)` : '(?)';
+
+            const isMissingData = (!hasZag || !hasNorm);
+
+            let boxesHtml = '';
+            items.forEach(b => {
+                let dStr = '—';
+                if (b.arrival_date) {
+                    const d = new Date(b.arrival_date);
+                    dStr = d.toLocaleDateString('uk-UA');
+                }
+                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#555">(${dStr})</small><br>`;
+            });
+
+            const tr = document.createElement('tr');
+            if (isMissingData) tr.classList.add('missing-data-row');
+
+            tr.innerHTML = `
+                <td><b>${code}</b><br><small>${prodName}</small></td>
+                <td>${boxesHtml}</td>
+                <td><b>Заг.-${zagStr} ТЗ -${tzStr} Скл.-${sklStr} ${normStr}</b></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // --- ЕКРАН «ПІДСОРТ» ---
+    function renderPodsort() {
+        const tbody = document.getElementById('podsortTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (!globalPlanograms || globalPlanograms.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає налаштованих норм у planograms</td></tr>';
+            return;
+        }
+
+        let count = 0;
+
+        globalPlanograms.forEach(plano => {
+            const code = plano.product_code;
+            const norm = parseInt(plano.shelf_capacity, 10) || 0;
+            if (norm <= 0) return;
+
+            const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === code.toLowerCase());
+            stockMatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+
+            const totalSkl = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
+            if (totalSkl <= 0) return;
+
+            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === code.toLowerCase());
+            const totalZag = gItem ? (parseInt(gItem.stock, 10) || 0) : totalSkl;
+
+            const currentTZ = totalZag - totalSkl;
+            const deficit = norm - currentTZ;
+
+            if (deficit <= 0) return; // В зале достаточно товара
+
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const prodName = prod ? prod.product_name : '';
+
+            let recommendationHtml = '';
+            let allocated = 0;
+
+            stockMatches.forEach(box => {
+                const boxQty = parseInt(box.qty, 10) || 0;
+                if (allocated < deficit && boxQty > 0) {
+                    const needed = deficit - allocated;
+                    const take = Math.min(boxQty, needed);
+                    allocated += take;
+
+                    let dStr = '';
+                    if (box.arrival_date) {
+                        const d = new Date(box.arrival_date);
+                        dStr = d.toLocaleDateString('uk-UA');
+                    }
+
+                    recommendationHtml += `📍 <b>${box.box_name}</b>: взяти <b>${take} шт.</b> <small style="color:#555">(прихід: ${dStr})</small><br>`;
+                }
+            });
+
+            count++;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${code}</b><br><small style="color:#666">${prodName}</small></td>
+                <td><span class="total-badge">${norm} шт.</span><br><small style="color:#888">Зараз в ТЗ: ${currentTZ} шт.</small></td>
+                <td>${recommendationHtml}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        if (count === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Всі полиці повністю укомплектовані! Підсорт не потрібен.</td></tr>';
         }
     }
 
-    // --- СКАНЕР: ІНФОРМАЦІЯ ТА ЗАЛИШКИ ---
+    // --- СКАНЕР: ІНФОРМАЦІЯ ---
     const scanInput = document.getElementById('scanInput');
     if (scanInput) {
         scanInput.addEventListener('keypress', function(e) {
@@ -437,11 +613,7 @@
         document.getElementById('resProductCode').innerText = currentProductCode;
         document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
         
-        currentScannedMatches = matches.map(item => ({
-            ...item,
-            originalQty: parseInt(item.qty, 10) || 0
-        }));
-
+        currentScannedMatches = matches.map(item => ({ ...item, originalQty: parseInt(item.qty, 10) || 0 }));
         resultCard.style.display = 'block';
         renderLocationsTable();
     }
@@ -449,7 +621,6 @@
     function renderLocationsTable() {
         const tbody = document.getElementById('resLocationsBody');
         tbody.innerHTML = '';
-
         if (currentScannedMatches.length === 0) {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
             document.getElementById('resTotalStock').innerText = `0 шт.`;
@@ -481,20 +652,16 @@
                 <td><b>${item.box_name}</b></td>
                 <td><small style="color: #555;">${arrivalDateFormatted}</small></td>
                 <td><span class="total-badge" id="availBadge_${idx}">${stockHtml}</span></td>
-                <td>
-                    <input type="number" id="${inputId}" class="qty-input-table" value="0" min="0" max="${availableForInput}" oninput="handleQtyInput(${idx}, ${availableForInput}, ${item.originalQty}, ${inCartQty})">
-                </td>
+                <td><input type="number" id="${inputId}" class="qty-input-table" value="0" min="0" max="${availableForInput}" oninput="handleQtyInput(${idx}, ${availableForInput}, ${item.originalQty}, ${inCartQty})"></td>
             `;
             tbody.appendChild(tr);
         });
-
         updateSummaryTotals();
     }
 
     function handleQtyInput(idx, maxVal, originalQty, inCartQty) {
         const input = document.getElementById(`qtyInput_${idx}`);
         let val = parseInt(input.value, 10);
-
         if (isNaN(val) || val < 0) { val = 0; input.value = 0; } 
         else if (val > maxVal) { val = maxVal; input.value = maxVal; }
 
@@ -504,22 +671,16 @@
             const remainder = originalQty - totalWithCurrentInput;
             stockHtml = `${originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${remainder}</span>`;
         }
-
         document.getElementById(`availBadge_${idx}`).innerHTML = stockHtml;
         updateSummaryTotals();
     }
 
     function updateSummaryTotals() {
-        let totalOriginalStock = 0;
-        let totalAlreadyInCart = 0;
-        let totalCurrentInput = 0;
-        let hasAnyQty = false;
-
+        let totalOriginalStock = 0, totalAlreadyInCart = 0, totalCurrentInput = 0, hasAnyQty = false;
         currentScannedMatches.forEach((item, idx) => {
             const cartItems = dbCartItems.filter(c => c.box_name === item.box_name && c.product_code.toLowerCase() === currentProductCode.toLowerCase());
             const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
-
             totalOriginalStock += item.originalQty;
             totalAlreadyInCart += inCartQty;
             totalCurrentInput += inputVal;
@@ -528,10 +689,7 @@
 
         const totalReservedNow = totalAlreadyInCart + totalCurrentInput;
         const totalRemaining = totalOriginalStock - totalReservedNow;
-
-        const totalStockDisplay = (totalReservedNow > 0)
-            ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>`
-            : `${totalOriginalStock} шт.`;
+        const totalStockDisplay = (totalReservedNow > 0) ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>` : `${totalOriginalStock} шт.`;
 
         document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
         document.getElementById('resTotalQty').innerText = `${totalReservedNow} шт.`;
@@ -544,7 +702,6 @@
     async function addAllToCart() {
         if (!activeOrderId) await ensureActiveOrder();
         const insertPromises = [];
-
         currentScannedMatches.forEach((item, idx) => {
             const qtyToReserve = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
             if (qtyToReserve > 0) {
@@ -575,19 +732,17 @@
         document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
-    // --- КОРЗИНКА ТА СПИСАННЯ ---
+    // --- КОРЗИНКА ---
     async function renderCart() {
         await loadAllData();
         const tbody = document.getElementById('cartTableBody');
         tbody.innerHTML = '';
-
         if (dbCartItems.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
             return;
         }
 
         const sortedItems = [...dbCartItems].sort((a, b) => a.box_name.localeCompare(b.box_name, undefined, { numeric: true, sensitivity: 'base' }));
-
         sortedItems.forEach((item) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -609,11 +764,7 @@
         try {
             const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
             const boxData = await resBox.json();
-
-            if (!boxData || boxData.length === 0) {
-                alert("Помилка: ящик або товар не знайдено на складі!");
-                return;
-            }
+            if (!boxData || boxData.length === 0) { alert("Помилка: ящик не знайдено!"); return; }
 
             const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
 
@@ -621,27 +772,21 @@
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, { method: 'DELETE', headers: HEADERS });
             } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
-                    method: 'PATCH',
-                    headers: HEADERS,
-                    body: JSON.stringify({ qty: newQty })
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
                 });
             }
 
             const itemObj = dbCartItems.find(i => i.id === itemId);
             await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
-                method: 'POST',
-                headers: HEADERS,
+                method: 'POST', headers: HEADERS,
                 body: JSON.stringify({ box_name: boxName, product_code: productCode, product_name: itemObj ? itemObj.product_name : '', qty_moved: qtyToPick })
             });
 
             await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, { method: 'DELETE', headers: HEADERS });
-
             await loadAllData();
             renderCart();
             alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}!`);
-        } catch (e) {
-            console.error("Помилка при списанні:", e);
-        }
+        } catch (e) { console.error(e); }
     }
 
     async function removeFromCart(itemId) {
@@ -675,9 +820,7 @@
                     tbody.appendChild(tr);
                 });
             }
-        } catch (e) {
-            console.error("Помилка історії", e);
-        }
+        } catch (e) { console.error(e); }
     }
 
     // --- ПРИХОД ---
@@ -687,8 +830,7 @@
             arrivalBoxInput.value = '';
             currentArrivalBox = '';
             document.getElementById('arrivalBoxNameDisplay').innerText = '—';
-            const scanField = document.getElementById('arrivalScanInput');
-            if (scanField) scanField.setAttribute('disabled', 'true');
+            document.getElementById('arrivalScanInput')?.setAttribute('disabled', 'true');
         });
         arrivalBoxInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -727,8 +869,7 @@
         if (!prodInfo) {
             try {
                 await fetch(`${SUPABASE_URL}/rest/v1/products`, {
-                    method: 'POST',
-                    headers: HEADERS,
+                    method: 'POST', headers: HEADERS,
                     body: JSON.stringify({ product_code: scannedCode, product_name: finalProductName, barcode: scannedCode })
                 });
                 await loadAllData();
@@ -742,15 +883,11 @@
             if (existing && existing.length > 0) {
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
-                    method: 'PATCH',
-                    headers: HEADERS,
-                    body: JSON.stringify({ qty: newQty, arrival_date: new Date().toISOString() })
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty, arrival_date: new Date().toISOString() })
                 });
             } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
-                    method: 'POST',
-                    headers: HEADERS,
-                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: new Date().toISOString() })
+                    method: 'POST', headers: HEADERS, body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: new Date().toISOString() })
                 });
             }
 
@@ -781,7 +918,7 @@
         });
     }
 
-    // --- РОЗДІЛ: ШТ. НА ПОЛКЕ (PLANOGRAMS) ---
+    // --- ШТ. НА ПОЛКЕ ---
     let currentShelfProductCode = '';
     const shelfScanInput = document.getElementById('shelfScanInput');
     if (shelfScanInput) {
@@ -818,88 +955,18 @@
             const existing = globalPlanograms.find(p => p.product_code?.toLowerCase() === currentShelfProductCode.toLowerCase());
             if (existing) {
                 await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(currentShelfProductCode)}`, {
-                    method: 'PATCH',
-                    headers: HEADERS,
-                    body: JSON.stringify({ shelf_capacity: newCapacity })
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ shelf_capacity: newCapacity })
                 });
             } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
-                    method: 'POST',
-                    headers: HEADERS,
-                    body: JSON.stringify({ product_code: currentShelfProductCode, shelf_capacity: newCapacity, display_type: 'standard' })
+                    method: 'POST', headers: HEADERS, body: JSON.stringify({ product_code: currentShelfProductCode, shelf_capacity: newCapacity, display_type: 'standard' })
                 });
             }
             alert("Норму місткості полиці успішно збережено!");
             await loadAllData();
             document.getElementById('shelfResultCard').style.display = 'none';
             document.getElementById('shelfScanInput').focus();
-        } catch (e) {
-            console.error("Помилка збереження плануграми:", e);
-            alert("Помилка збереження.");
-        }
-    }
-
-    // --- РОЗДІЛ: ПІДСОРТ (АНАЛІЗ ЗА FIFO) ---
-    function renderPodsort() {
-        const tbody = document.getElementById('podsortTableBody');
-        if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Формування рекомендацій...</td></tr>';
-
-        if (!globalPlanograms || globalPlanograms.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає налаштованих норм у planograms</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = '';
-        let count = 0;
-
-        globalPlanograms.forEach(plano => {
-            const code = plano.product_code;
-            const capacity = parseInt(plano.shelf_capacity, 10) || 0;
-            if (capacity <= 0) return;
-
-            const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === code.toLowerCase());
-            stockMatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
-
-            const totalWarehouseQty = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
-            if (totalWarehouseQty <= 0) return;
-
-            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
-            const prodName = prod ? prod.product_name : '';
-
-            let recommendationHtml = '';
-            let allocated = 0;
-
-            stockMatches.forEach(box => {
-                const boxQty = parseInt(box.qty, 10) || 0;
-                if (allocated < capacity && boxQty > 0) {
-                    const needed = capacity - allocated;
-                    const take = Math.min(boxQty, needed);
-                    allocated += take;
-
-                    let dStr = '';
-                    if (box.arrival_date) {
-                        const d = new Date(box.arrival_date);
-                        dStr = d.toLocaleDateString('uk-UA');
-                    }
-
-                    recommendationHtml += `📍 <b>${box.box_name}</b>: взяти <b>${take} шт.</b> <small style="color:#555">(прихід: ${dStr})</small><br>`;
-                }
-            });
-
-            count++;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><b>${code}</b><br><small style="color:#666">${prodName}</small></td>
-                <td><span class="total-badge">${capacity} шт.</span></td>
-                <td>${recommendationHtml}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        if (count === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Всі полиці повністю укомплектовані! Підсорт не потрібен.</td></tr>';
-        }
+        } catch (e) { alert("Помилка збереження."); }
     }
 
     window.onload = function() {
