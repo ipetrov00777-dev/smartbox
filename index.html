@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v1.5 - Складський облік</title>
+    <title>SmartBox v1.6 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -78,7 +78,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.5</div>
+        <div class="app-version">SmartBox v1.6</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -137,7 +137,7 @@
                 <thead>
                     <tr>
                         <th>Код / Товар</th>
-                        <th>Ящики (К-сть / Дата)</th>
+                        <th id="whBoxesHeader">Ящики (К-сть / Дата)</th>
                         <th>Метка остатков</th>
                     </tr>
                 </thead>
@@ -443,8 +443,15 @@
     // --- ЕКРАН «СКЛАД» ---
     function renderWarehouseScreen() {
         const tbody = document.getElementById('warehouseTableBody');
+        const headerTh = document.getElementById('whBoxesHeader');
         if (!tbody) return;
         tbody.innerHTML = '';
+
+        // Динамический подсчет общей суммы товара по всем ящикам на складе
+        const grandTotalBoxesQty = globalStock.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
+        if (headerTh) {
+            headerTh.innerHTML = `Ящики (К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
+        }
 
         // Группируем остатки inventory_boxes по product_code
         const groupedWarehouse = {};
