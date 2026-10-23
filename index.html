@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v2.1 - Складський облік</title>
+    <title>SmartBox v2.2 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -45,9 +45,14 @@
         
         .pick-row-btn { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: bold; }
         .pick-row-btn:hover { background: #218838; }
-        .remove-row-btn { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
-        .remove-row-btn:hover { background: #c82333; }
         
+        /* Стили для режима редактирования (карандаш) в корзинке */
+        .cart-header-flex { display: flex; justify-content: space-between; align-items: center; }
+        .edit-toggle-btn { background: #f1f3f4; border: 1px solid #ccc; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+        .edit-toggle-btn.active { background: #1a73e8; color: white; border-color: #1a73e8; }
+        .batch-delete-btn { background: #dc3545; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; margin-top: 15px; cursor: pointer; display: none; }
+        .batch-delete-btn:hover { background: #c82333; }
+
         .sync-stamp { font-size: 12px; color: #555; font-weight: normal; margin-top: 4px; }
         
         tr.missing-data-row { background-color: #ffe6e6 !important; color: #d93025 !important; }
@@ -78,7 +83,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v2.1</div>
+        <div class="app-version">SmartBox v2.2</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -181,10 +186,14 @@
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         <div class="card">
-            <h3>Завдання на збір у зал</h3>
+            <div class="cart-header-flex">
+                <h3>Завдання на збір у зал</h3>
+                <button id="cartEditToggleBtn" class="edit-toggle-btn" onclick="toggleCartEditMode()" title="Режим редагування / видалення">✎ Режим видалення</button>
+            </div>
             <table>
                 <thead>
                     <tr>
+                        <th id="cartSelectTh" style="display: none; width: 40px; text-align: center;">✓</th>
                         <th>Ящик</th>
                         <th>Код / Назва</th>
                         <th>К-сть</th>
@@ -192,9 +201,10 @@
                     </tr>
                 </thead>
                 <tbody id="cartTableBody">
-                    <tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>
+                    <tr><td colspan="5" style="text-align: center; color: #777;">Корзинка порожня</td></tr>
                 </tbody>
             </table>
+            <button id="batchDeleteBtn" class="batch-delete-btn" onclick="deleteSelectedCartItems()">🗑 Видалити вибрані позиції</button>
         </div>
     </div>
 
@@ -317,6 +327,8 @@
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
     let podsortPickedCount = 0; 
+    
+    let isCartEditMode = false; // Состояние режима удаления в корзинке
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -356,7 +368,10 @@
         if (screenId === 'podsortSection') {
             loadAllData().then(() => renderPodsort());
         }
-        if (screenId === 'cartSection') renderCart();
+        if (screenId === 'cartSection') {
+            isCartEditMode = false; // Сбрасываем режим редактирования при входе
+            renderCart();
+        }
         if (screenId === 'historySection') loadHistory();
         if (screenId === 'arrivalSection') {
             loadAllData();
@@ -526,7 +541,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» ЗІ ЗБІРОМ ТА ШТРИХКОДОМ ---
+    // --- ЕКРАН «ПІДСОРТ» ---
     function renderPodsort() {
         const tbody = document.getElementById('podsortTableBody');
         const headerTh = document.getElementById('podsortHeader');
@@ -630,7 +645,6 @@
         });
     }
 
-    // Подтверждение списания по штрихкоду для Подсорта
     async function executePodsortPick(boxName, productCode, qtyToPick, productName, productBarcode) {
         const confirmMsg = `Ви точно взяли товар?\nШтрихкод: ${productBarcode}\nЯщик: ${boxName}\nКількість: ${qtyToPick} шт.`;
         if (!confirm(confirmMsg)) return;
@@ -813,39 +827,105 @@
         document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
-    // --- КОРЗИНКА ЗІ ШТРИХКОДОМ У ПІДТВЕРДЖЕННІ ---
+    // --- КОРЗИНКА (РЕЖИМ ВИДАЛЕННЯ / КАРАНДАШ) ---
+    function toggleCartEditMode() {
+        isCartEditMode = !isCartEditMode;
+        const toggleBtn = document.getElementById('cartEditToggleBtn');
+        if (isCartEditMode) {
+            toggleBtn.classList.add('active');
+            toggleBtn.innerText = '✕ Готово';
+        } else {
+            toggleBtn.classList.remove('active');
+            toggleBtn.innerText = '✎ Режим видалення';
+        }
+        renderCart();
+    }
+
     async function renderCart() {
         await loadAllData();
         const tbody = document.getElementById('cartTableBody');
+        const selectTh = document.getElementById('cartSelectTh');
+        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
         tbody.innerHTML = '';
+
         if (dbCartItems.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
+            if (selectTh) selectTh.style.display = 'none';
+            if (batchDeleteBtn) batchDeleteBtn.style.display = 'none';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
             return;
         }
 
+        if (isCartEditMode) {
+            if (selectTh) selectTh.style.display = 'table-cell';
+        } else {
+            if (selectTh) selectTh.style.display = 'none';
+            if (batchDeleteBtn) batchDeleteBtn.style.display = 'none';
+        }
+
         const sortedItems = [...dbCartItems].sort((a, b) => a.box_name.localeCompare(b.box_name, undefined, { numeric: true, sensitivity: 'base' }));
+        
         sortedItems.forEach((item) => {
-            // Находим штрихкод для товара в корзине
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
             const itemBarcode = prod ? (prod.barcode || item.product_code) : item.product_code;
 
             const tr = document.createElement('tr');
+            
+            let checkboxTdHtml = '';
+            if (isCartEditMode) {
+                checkboxTdHtml = `<td style="text-align: center;"><input type="checkbox" class="cart-row-checkbox" value="${item.id}" onchange="checkBatchDeleteButton()" style="width: 20px; height: 20px; cursor: pointer;"></td>`;
+            }
+
             tr.innerHTML = `
+                ${checkboxTdHtml}
                 <td><b>${item.box_name}</b></td>
                 <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
                 <td><span class="total-badge">${item.qty_reserved} шт.</span></td>
                 <td>
-                    <div style="display: flex; gap: 5px;">
-                        <button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved}, '${itemBarcode}')" title="Підтвердити і списати">✓</button>
-                        <button class="remove-row-btn" onclick="removeFromCart('${item.id}')" title="Видалити">✕</button>
-                    </div>
+                    <button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved}, '${itemBarcode}')" title="Підтвердити і списати">✓</button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
+        checkBatchDeleteButton();
     }
 
-    // Подтверждение списания по штрихкоду для Корзинки
+    function checkBatchDeleteButton() {
+        const checkboxes = document.querySelectorAll('.cart-row-checkbox:checked');
+        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+        if (batchDeleteBtn && isCartEditMode) {
+            if (checkboxes.length > 0) {
+                batchDeleteBtn.style.display = 'block';
+                batchDeleteBtn.innerText = `🗑 Видалити вибрані позиції (${checkboxes.length})`;
+            } else {
+                batchDeleteBtn.style.display = 'none';
+            }
+        }
+    }
+
+    async function deleteSelectedCartItems() {
+        const checkboxes = document.querySelectorAll('.cart-row-checkbox:checked');
+        if (checkboxes.length === 0) return;
+
+        if (!confirm(`Ви дійсно хочете видалити вибрані позиції (${checkboxes.length} шт.) з корзинки?`)) {
+            return;
+        }
+
+        const deletePromises = [];
+        checkboxes.forEach(cb => {
+            deletePromises.push(fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${cb.value}`, { method: 'DELETE', headers: HEADERS }));
+        });
+
+        try {
+            await Promise.all(deletePromises);
+            await loadAllData();
+            renderCart();
+            alert("Вибрані позиції успішно видалено з корзинки!");
+        } catch (e) {
+            console.error("Помилка видалення:", e);
+            alert("Сталася помилка при видаленні.");
+        }
+    }
+
     async function pickCartItem(itemId, boxName, productCode, qtyToPick, productBarcode) {
         const confirmMsg = `Ви точно взяли товар?\nШтрихкод: ${productBarcode}\nЯщик: ${boxName}\nКількість: ${qtyToPick} шт.`;
         if (!confirm(confirmMsg)) return;
@@ -876,12 +956,6 @@
             renderCart();
             alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}!`);
         } catch (e) { console.error(e); }
-    }
-
-    async function removeFromCart(itemId) {
-        await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, { method: 'DELETE', headers: HEADERS });
-        await loadAllData();
-        renderCart();
     }
 
     // --- ІСТОРІЯ ---
