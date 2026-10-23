@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v1.8 - Складський облік</title>
+    <title>SmartBox v1.9 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -78,7 +78,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.8</div>
+        <div class="app-version">SmartBox v1.9</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -316,7 +316,7 @@
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
-    let podsortPickedCount = 0; // Счетчик выполненных позиций подсорта
+    let podsortPickedCount = 0; // Счетчик списанных штук за сессию
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -526,7 +526,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» ЗІ ЗБІРОМ ТА ЛІЧИЛЬНИКОМ ---
+    // --- ЕКРАН «ПІДСОРТ» ---
     function renderPodsort() {
         const tbody = document.getElementById('podsortTableBody');
         const headerTh = document.getElementById('podsortHeader');
@@ -559,17 +559,22 @@
             const currentTZ = totalZag - totalSkl;
             const deficit = norm - currentTZ;
 
-            if (deficit <= 0) return; 
+            if (deficit <= 0) return; // В зале достаточно товара
 
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : '';
 
+            // [ИСПРАВЛЕНИЕ]: Счетчик распределения запускается заново (0) для каждого уникального товара!
+            let allocatedForThisProduct = 0;
+
             stockMatches.forEach(box => {
                 const boxQty = parseInt(box.qty, 10) || 0;
-                if (totalDeficitCount < deficit && boxQty > 0) {
-                    const needed = deficit - totalDeficitCount;
+                if (allocatedForThisProduct < deficit && boxQty > 0) {
+                    const needed = deficit - allocatedForThisProduct;
                     const take = Math.min(boxQty, needed);
-                    totalDeficitCount += take;
+                    
+                    allocatedForThisProduct += take;
+                    totalDeficitCount += take; // Суммируем общие штуки к выносу для шапки
 
                     let dStr = '';
                     if (box.arrival_date) {
@@ -590,7 +595,7 @@
             });
         });
 
-        // Обновляем шапку со счетчиком выполненного / общего количества (например, 0 / 15)
+        // Обновляем шапку со счетчиком выполненного / общего количества штук (например: 0 / 7 шт.)
         if (headerTh) {
             headerTh.innerHTML = `Рекомендація (Ящик / К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Прогрес виносу: <b>${podsortPickedCount} / ${totalDeficitCount} шт.</b></small>`;
         }
@@ -600,7 +605,7 @@
             return;
         }
 
-        rowsData.forEach((row, index) => {
+        rowsData.forEach((row) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${row.code}</b><br><small style="color:#666">${row.prodName}</small></td>
@@ -618,7 +623,6 @@
         });
     }
 
-    // Быстрое списание рекомендации прямо из окна подсорта (как в корзинке)
     async function executePodsortPick(boxName, productCode, qtyToPick, productName) {
         try {
             const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
