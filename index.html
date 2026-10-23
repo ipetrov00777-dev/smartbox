@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v1.6 - Складський облік</title>
+    <title>SmartBox v1.5 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -78,7 +78,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.6</div>
+        <div class="app-version">SmartBox v1.5</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -122,7 +122,7 @@
         </div>
     </div>
 
-    <!-- 3. РОЗДІЛ: СКЛАД -->
+    <!-- 3. РОЗДІЛ: СКЛАД (НОВИЙ) -->
     <div id="warehouseSection" class="screen">
         <div class="header-bar">
             <div>
@@ -137,7 +137,7 @@
                 <thead>
                     <tr>
                         <th>Код / Товар</th>
-                        <th id="whBoxesHeader">Ящики (К-сть / Дата)</th>
+                        <th>Ящики (К-сть / Дата)</th>
                         <th>Метка остатков</th>
                     </tr>
                 </thead>
@@ -148,7 +148,7 @@
         </div>
     </div>
 
-    <!-- 4. РОЗДІЛ: ПІДСОРТ -->
+    <!-- 4. РОЗДІЛ: ПІДСОРТ (ОНОВЛЕНИЙ ЗА ФОРМУЛОЮ ТЗ = Заг - Скл) -->
     <div id="podsortSection" class="screen">
         <div class="header-bar">
             <div>
@@ -440,21 +440,13 @@
         if (psElem) psElem.innerText = stampText;
     }
 
-    // --- ЕКРАН «СКЛАД» З ПОДБІРОМ ЗАГАЛЬНОЇ КІЛЬКОСТІ В ШАПЦІ ---
+    // --- ЕКРАН «СКЛАД» ---
     function renderWarehouseScreen() {
         const tbody = document.getElementById('warehouseTableBody');
-        const headerTh = document.getElementById('whBoxesHeader');
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        let grandTotalBoxesQty = 0;
-        globalStock.forEach(item => {
-            grandTotalBoxesQty += (parseInt(item.qty, 10) || 0);
-        });
-        if (headerTh) {
-            headerTh.innerHTML = `Ящики (К-сть / Дата) <br><small style="color: #1a73e8; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
-        }
-
+        // Группируем остатки inventory_boxes по product_code
         const groupedWarehouse = {};
         globalStock.forEach(item => {
             const code = item.product_code;
@@ -549,7 +541,7 @@
             const currentTZ = totalZag - totalSkl;
             const deficit = norm - currentTZ;
 
-            if (deficit <= 0) return; 
+            if (deficit <= 0) return; // В зале достаточно товара
 
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : '';
@@ -689,115 +681,168 @@
             const cartItems = dbCartItems.filter(c => c.box_name === item.box_name && c.product_code.toLowerCase() === currentProductCode.toLowerCase());
             const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
             const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
-
             totalOriginalStock += item.originalQty;
             totalAlreadyInCart += inCartQty;
             totalCurrentInput += inputVal;
             if (inputVal > 0) hasAnyQty = true;
         });
 
-        const totalRemaining = totalOriginalStock - totalAlreadyInCart - totalCurrentInput;
-        document.getElementById('resTotalStock').innerText = `${totalRemaining} шт. (всього: ${totalOriginalStock})`;
-        document.getElementById('resTotalQty').innerText = `${totalCurrentInput} шт.`;
+        const totalReservedNow = totalAlreadyInCart + totalCurrentInput;
+        const totalRemaining = totalOriginalStock - totalReservedNow;
+        const totalStockDisplay = (totalReservedNow > 0) ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>` : `${totalOriginalStock} шт.`;
 
-        const btn = document.getElementById('globalCartBtn');
-        if (hasAnyQty) {
-            btn.removeAttribute('disabled');
-        } else {
-            btn.setAttribute('disabled', 'true');
-        }
+        document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
+        document.getElementById('resTotalQty').innerText = `${totalReservedNow} шт.`;
+
+        const globalBtn = document.getElementById('globalCartBtn');
+        if (hasAnyQty) globalBtn.removeAttribute('disabled');
+        else globalBtn.setAttribute('disabled', 'true');
     }
 
-    // --- КОРЗИНА ---
     async function addAllToCart() {
-        if (!activeOrderId) return;
-        let addedAny = false;
-
-        for (let idx = 0; idx < currentScannedMatches.length; idx++) {
-            const item = currentScannedMatches[idx];
-            const input = document.getElementById(`qtyInput_${idx}`);
-            if (!input) continue;
-            const val = parseInt(input.value, 10) || 0;
-            if (val <= 0) continue;
-
-            const payload = {
-                order_id: activeOrderId,
-                product_code: currentProductCode,
-                product_name: currentProductName,
-                box_name: item.box_name,
-                qty_reserved: val
-            };
-
-            try {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
+        if (!activeOrderId) await ensureActiveOrder();
+        const insertPromises = [];
+        currentScannedMatches.forEach((item, idx) => {
+            const qtyToReserve = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
+            if (qtyToReserve > 0) {
+                insertPromises.push(fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
                     method: 'POST',
                     headers: HEADERS,
-                    body: JSON.stringify(payload)
-                });
-                if (res.ok) addedAny = true;
-            } catch (e) { console.error("Помилка додавання в корзину:", e); }
-        }
+                    body: JSON.stringify({
+                        order_id: activeOrderId,
+                        box_name: item.box_name,
+                        product_code: currentProductCode,
+                        product_name: currentProductName,
+                        qty_reserved: qtyToReserve
+                    })
+                }));
+            }
+        });
 
-        if (addedAny) {
-            alert('Успішно додано в корзинку!');
+        if (insertPromises.length > 0) {
+            await Promise.all(insertPromises);
             await loadAllData();
-            resetInfoSection();
-            showScreen('menuScreen');
+            renderLocationsTable();
+            alert("Товари успішно додано в корзинку!");
         }
     }
 
     function updateCartBadge() {
-        const badge = document.getElementById('cartBadge');
-        if (badge) badge.innerText = dbCartItems.length;
+        const totalCartItems = dbCartItems.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
+        document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
-    function renderCart() {
+    // --- КОРЗИНКА ---
+    async function renderCart() {
+        await loadAllData();
         const tbody = document.getElementById('cartTableBody');
-        if (!tbody) return;
         tbody.innerHTML = '';
-
-        if (!dbCartItems || dbCartItems.length === 0) {
+        if (dbCartItems.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
             return;
         }
 
-        dbCartItems.forEach(item => {
+        const sortedItems = [...dbCartItems].sort((a, b) => a.box_name.localeCompare(b.box_name, undefined, { numeric: true, sensitivity: 'base' }));
+        sortedItems.forEach((item) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td><b>${item.product_code}</b><br><small>${item.product_name || ''}</small></td>
+                <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
                 <td><span class="total-badge">${item.qty_reserved} шт.</span></td>
-                <td><button class="remove-row-btn" onclick="removeCartItem('${item.id}')">Видалити</button></td>
+                <td>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved})" title="Підтвердити і списати">✓</button>
+                        <button class="remove-row-btn" onclick="removeFromCart('${item.id}')" title="Видалити">✕</button>
+                    </div>
+                </td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    async function removeCartItem(itemId) {
+    async function pickCartItem(itemId, boxName, productCode, qtyToPick) {
         try {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, {
-                method: 'DELETE',
-                headers: HEADERS
-            });
-            if (res.ok) {
-                await loadAllData();
-                renderCart();
+            const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
+            const boxData = await resBox.json();
+            if (!boxData || boxData.length === 0) { alert("Помилка: ящик не знайдено!"); return; }
+
+            const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
+
+            if (newQty === 0) {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, { method: 'DELETE', headers: HEADERS });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
+                });
             }
-        } catch (e) { console.error("Помилка видалення елемента:", e); }
+
+            const itemObj = dbCartItems.find(i => i.id === itemId);
+            await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
+                method: 'POST', headers: HEADERS,
+                body: JSON.stringify({ box_name: boxName, product_code: productCode, product_name: itemObj ? itemObj.product_name : '', qty_moved: qtyToPick })
+            });
+
+            await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, { method: 'DELETE', headers: HEADERS });
+            await loadAllData();
+            renderCart();
+            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}!`);
+        } catch (e) { console.error(e); }
+    }
+
+    async function removeFromCart(itemId) {
+        await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, { method: 'DELETE', headers: HEADERS });
+        await loadAllData();
+        renderCart();
+    }
+
+    // --- ІСТОРІЯ ---
+    async function loadHistory() {
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>';
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/completed_movements?select=*&order=created_at.desc&limit=50`, { headers: HEADERS });
+            if (res.ok) {
+                const historyItems = await res.json();
+                tbody.innerHTML = '';
+                if (historyItems.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Історія порожня</td></tr>';
+                    return;
+                }
+                historyItems.forEach(item => {
+                    const dateFormatted = new Date(item.created_at).toLocaleString('uk-UA');
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><small>${dateFormatted}</small></td>
+                        <td><b>${item.box_name}</b></td>
+                        <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
+                        <td><span class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">${item.qty_moved} шт.</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        } catch (e) { console.error(e); }
     }
 
     // --- ПРИХОД ---
     const arrivalBoxInput = document.getElementById('arrivalBoxInput');
     if (arrivalBoxInput) {
-        arrivalBoxInput.addEventListener('keypress', async function(e) {
+        arrivalBoxInput.addEventListener('focus', function() {
+            arrivalBoxInput.value = '';
+            currentArrivalBox = '';
+            document.getElementById('arrivalBoxNameDisplay').innerText = '—';
+            document.getElementById('arrivalScanInput')?.setAttribute('disabled', 'true');
+        });
+        arrivalBoxInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const boxName = arrivalBoxInput.value.trim();
-                if (!boxName) return;
-                currentArrivalBox = boxName;
-                document.getElementById('arrivalBoxNameDisplay').innerText = boxName;
-                document.getElementById('arrivalScanInput').removeAttribute('disabled');
-                document.getElementById('arrivalScanInput').focus();
+                if (boxName) {
+                    currentArrivalBox = boxName;
+                    document.getElementById('arrivalBoxNameDisplay').innerText = boxName;
+                    const scanField = document.getElementById('arrivalScanInput');
+                    scanField.removeAttribute('disabled');
+                    scanField.focus();
+                }
             }
         });
     }
@@ -807,44 +852,50 @@
         arrivalScanInput.addEventListener('keypress', async function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const code = arrivalScanInput.value.trim();
+                const scannedCode = arrivalScanInput.value.trim();
                 arrivalScanInput.value = '';
-                if (!code || !currentArrivalBox) return;
-
-                const prodInfo = globalProducts.find(p => 
-                    (p.product_code && p.product_code.toLowerCase() === code.toLowerCase()) || 
-                    (p.barcode && p.barcode.toLowerCase() === code.toLowerCase())
-                );
-                const pCode = prodInfo ? prodInfo.product_code : code;
-                const pName = prodInfo ? (prodInfo.product_name || 'Невідомий товар') : 'Невідомий товар';
-
-                const arrivalPayload = {
-                    box_name: currentArrivalBox,
-                    product_code: pCode,
-                    qty: 1,
-                    arrival_date: new Date().toISOString()
-                };
-
-                try {
-                    const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
-                        method: 'POST',
-                        headers: HEADERS,
-                        body: JSON.stringify(arrivalPayload)
-                    });
-                    if (res.ok) {
-                        sessionArrivalItems.unshift({
-                            scan: code,
-                            box: currentArrivalBox,
-                            code: pCode,
-                            name: pName
-                        });
-                        document.getElementById('arrivalCountDisplay').innerText = sessionArrivalItems.length;
-                        renderArrivalTable();
-                        await loadAllData();
-                    }
-                } catch (err) { console.error("Помилка приходу:", err); }
+                if (scannedCode && currentArrivalBox) await processContinuousArrival(scannedCode);
             }
         });
+    }
+
+    async function processContinuousArrival(scannedCode) {
+        const codeLower = scannedCode.toLowerCase();
+        const prodInfo = globalProducts.find(p => (p.product_code?.toLowerCase() === codeLower) || (p.barcode?.toLowerCase() === codeLower));
+
+        let finalProductCode = prodInfo ? prodInfo.product_code : scannedCode;
+        let finalProductName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар (Приход)';
+
+        if (!prodInfo) {
+            try {
+                await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+                    method: 'POST', headers: HEADERS,
+                    body: JSON.stringify({ product_code: scannedCode, product_name: finalProductName, barcode: scannedCode })
+                });
+                await loadAllData();
+            } catch (e) { console.error(e); }
+        }
+
+        try {
+            const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
+            const existing = await checkRes.json();
+
+            if (existing && existing.length > 0) {
+                const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty, arrival_date: new Date().toISOString() })
+                });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
+                    method: 'POST', headers: HEADERS, body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: new Date().toISOString() })
+                });
+            }
+
+            sessionArrivalItems.unshift({ scanned_code: scannedCode, box_name: currentArrivalBox, product_code: finalProductCode, product_name: finalProductName, time: new Date().toLocaleTimeString('uk-UA') });
+            renderArrivalTable();
+            document.getElementById('arrivalCountDisplay').innerText = sessionArrivalItems.length;
+            await loadAllData();
+        } catch (e) { console.error(e); }
     }
 
     function renderArrivalTable() {
@@ -858,16 +909,17 @@
         sessionArrivalItems.forEach(item => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${item.scan}</td>
-                <td><b>${item.box}</b></td>
-                <td>${item.code}</td>
-                <td><small>${item.name}</small></td>
+                <td><b>${item.scanned_code}</b><br><small style="color:#888">${item.time}</small></td>
+                <td><b>${item.box_name}</b></td>
+                <td><span class="total-badge">${item.product_code}</span></td>
+                <td><b>${item.product_name}</b></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // --- НОРМИ ПОЛИЦЬ (ШТ. НА ПОЛКЕ) ---
+    // --- ШТ. НА ПОЛКЕ ---
+    let currentShelfProductCode = '';
     const shelfScanInput = document.getElementById('shelfScanInput');
     if (shelfScanInput) {
         shelfScanInput.addEventListener('keypress', function(e) {
@@ -875,61 +927,51 @@
                 e.preventDefault();
                 const code = shelfScanInput.value.trim();
                 shelfScanInput.value = '';
-                if (!code) return;
-
-                const prodInfo = globalProducts.find(p => 
-                    (p.product_code && p.product_code.toLowerCase() === code.toLowerCase()) || 
-                    (p.barcode && p.barcode.toLowerCase() === code.toLowerCase())
-                );
-                currentProductCode = prodInfo ? prodInfo.product_code : code;
-                currentProductName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
-
-                document.getElementById('shelfProductName').innerText = currentProductName;
-                document.getElementById('shelfProductCode').innerText = currentProductCode;
-
-                const plano = globalPlanograms.find(p => p.product_code?.toLowerCase() === currentProductCode.toLowerCase());
-                document.getElementById('shelfCapacityInput').value = plano ? (plano.shelf_capacity || 0) : 0;
-                document.getElementById('shelfResultCard').style.display = 'block';
+                if (code) processShelfScan(code);
             }
         });
     }
 
-    async function saveShelfCapacity() {
-        const capacity = parseInt(document.getElementById('shelfCapacityInput').value, 10) || 0;
-        if (!currentProductCode) return;
+    function processShelfScan(code) {
+        const codeLower = code.toLowerCase();
+        const prodInfo = globalProducts.find(p => (p.product_code?.toLowerCase() === codeLower) || (p.barcode?.toLowerCase() === codeLower));
+        currentShelfProductCode = prodInfo ? prodInfo.product_code : code;
+        const currentName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
 
-        const existing = globalPlanograms.find(p => p.product_code?.toLowerCase() === currentProductCode.toLowerCase());
-        
+        const plano = globalPlanograms.find(p => p.product_code?.toLowerCase() === currentShelfProductCode.toLowerCase());
+        const capacity = plano ? (plano.shelf_capacity || 0) : 0;
+
+        document.getElementById('shelfProductName').innerText = currentName;
+        document.getElementById('shelfProductCode').innerText = currentShelfProductCode;
+        document.getElementById('shelfCapacityInput').value = capacity;
+        document.getElementById('shelfResultCard').style.display = 'block';
+    }
+
+    async function saveShelfCapacity() {
+        const newCapacity = parseInt(document.getElementById('shelfCapacityInput').value, 10) || 0;
+        if (!currentShelfProductCode) return;
+
         try {
-            let res;
+            const existing = globalPlanograms.find(p => p.product_code?.toLowerCase() === currentShelfProductCode.toLowerCase());
             if (existing) {
-                res = await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${currentProductCode}`, {
-                    method: 'PATCH',
-                    headers: HEADERS,
-                    body: JSON.stringify({ shelf_capacity: capacity })
+                await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(currentShelfProductCode)}`, {
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ shelf_capacity: newCapacity })
                 });
             } else {
-                res = await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
-                    method: 'POST',
-                    headers: HEADERS,
-                    body: JSON.stringify({ product_code: currentProductCode, shelf_capacity: capacity })
+                await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
+                    method: 'POST', headers: HEADERS, body: JSON.stringify({ product_code: currentShelfProductCode, shelf_capacity: newCapacity, display_type: 'standard' })
                 });
             }
-
-            if (res.ok) {
-                alert('Норму успішно збережено!');
-                await loadAllData();
-                showScreen('menuScreen');
-            }
-        } catch (e) { console.error("Помилка збереження норми:", e); }
+            alert("Норму місткості полиці успішно збережено!");
+            await loadAllData();
+            document.getElementById('shelfResultCard').style.display = 'none';
+            document.getElementById('shelfScanInput').focus();
+        } catch (e) { alert("Помилка збереження."); }
     }
 
-    function loadHistory() {
-        const tbody = document.getElementById('historyTableBody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Історія порожня</td></tr>';
-    }
-
-    window.onload = initSystem;
+    window.onload = function() {
+        initSystem();
+    };
 </script>
 </body>
 </html>
