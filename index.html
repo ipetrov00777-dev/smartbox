@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v1.6 - Складський облік</title>
+    <title>SmartBox v1.7 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -78,7 +78,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.6</div>
+        <div class="app-version">SmartBox v1.7</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -122,7 +122,7 @@
         </div>
     </div>
 
-    <!-- 3. РОЗДІЛ: СКЛАД (НОВИЙ) -->
+    <!-- 3. РОЗДІЛ: СКЛАД -->
     <div id="warehouseSection" class="screen">
         <div class="header-bar">
             <div>
@@ -138,7 +138,7 @@
                     <tr>
                         <th>Код / Товар</th>
                         <th id="whBoxesHeader">Ящики (К-сть / Дата)</th>
-                        <th>Метка остатков</th>
+                        <th id="whMetricsHeader">Метка остатков</th>
                     </tr>
                 </thead>
                 <tbody id="warehouseTableBody">
@@ -148,7 +148,7 @@
         </div>
     </div>
 
-    <!-- 4. РОЗДІЛ: ПІДСОРТ (ОНОВЛЕНИЙ ЗА ФОРМУЛОЮ ТЗ = Заг - Скл) -->
+    <!-- 4. РОЗДІЛ: ПІДСОРТ -->
     <div id="podsortSection" class="screen">
         <div class="header-bar">
             <div>
@@ -444,13 +444,23 @@
     function renderWarehouseScreen() {
         const tbody = document.getElementById('warehouseTableBody');
         const headerTh = document.getElementById('whBoxesHeader');
+        const metricsTh = document.getElementById('whMetricsHeader');
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        // Динамический подсчет общей суммы товара по всем ящикам на складе
+        // 1. Динамический подсчет общей суммы товара в ящиках
         const grandTotalBoxesQty = globalStock.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
         if (headerTh) {
             headerTh.innerHTML = `Ящики (К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
+        }
+
+        // 2. Динамический подсчет общей суммы «Загальний остаток» (Заг.)
+        let grandTotalZagQty = 0;
+        googleStockData.forEach(g => {
+            grandTotalZagQty += (parseInt(g.stock, 10) || 0);
+        });
+        if (metricsTh) {
+            metricsTh.innerHTML = `Метка остатков<br><small style="color: #1a73e8; font-weight: normal;">Всього Заг: <b>${grandTotalZagQty} шт.</b></small>`;
         }
 
         // Группируем остатки inventory_boxes по product_code
