@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v1.9 - Складський облік</title>
+    <title>SmartBox v2.0 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -78,7 +78,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.9</div>
+        <div class="app-version">SmartBox v2.0</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -316,7 +316,7 @@
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
-    let podsortPickedCount = 0; // Счетчик списанных штук за сессию
+    let podsortPickedCount = 0; 
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -526,7 +526,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» ---
+    // --- ЕКРАН «ПІДСОРТ» З ІГНОРУВАННЯМ ЗАРЕЗЕРВОВАНИХ ТОВАРІВ ---
     function renderPodsort() {
         const tbody = document.getElementById('podsortTableBody');
         const headerTh = document.getElementById('podsortHeader');
@@ -542,8 +542,18 @@
         let totalDeficitCount = 0;
         let rowsData = [];
 
+        // Собираем массив кодов товаров, которые сейчас ЗАРЕЗЕРВОВАНО в корзинке
+        const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
+
         globalPlanograms.forEach(plano => {
             const code = plano.product_code;
+
+            // [НОВАЯ ЛОГИКА]: Если товар прямо сейчас находится в Корзине (зарезервирован под клиента),
+            // мы временно скрываем его из авто-подсорта, чтобы работник зала его не забрал!
+            if (reservedProductCodesInCart.includes(code?.toLowerCase())) {
+                return; // Пропускаем этот товар из авто-подсорта
+            }
+
             const norm = parseInt(plano.shelf_capacity, 10) || 0;
             if (norm <= 0) return;
 
@@ -559,12 +569,11 @@
             const currentTZ = totalZag - totalSkl;
             const deficit = norm - currentTZ;
 
-            if (deficit <= 0) return; // В зале достаточно товара
+            if (deficit <= 0) return; 
 
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : '';
 
-            // [ИСПРАВЛЕНИЕ]: Счетчик распределения запускается заново (0) для каждого уникального товара!
             let allocatedForThisProduct = 0;
 
             stockMatches.forEach(box => {
@@ -574,7 +583,7 @@
                     const take = Math.min(boxQty, needed);
                     
                     allocatedForThisProduct += take;
-                    totalDeficitCount += take; // Суммируем общие штуки к выносу для шапки
+                    totalDeficitCount += take;
 
                     let dStr = '';
                     if (box.arrival_date) {
@@ -595,13 +604,12 @@
             });
         });
 
-        // Обновляем шапку со счетчиком выполненного / общего количества штук (например: 0 / 7 шт.)
         if (headerTh) {
             headerTh.innerHTML = `Рекомендація (Ящик / К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Прогрес виносу: <b>${podsortPickedCount} / ${totalDeficitCount} шт.</b></small>`;
         }
 
         if (rowsData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Всі полиці повністю укомплектовані! Підсорт не потрібен.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Всі полиці повністю укомплектовані! Підсорт не потрібен (або товари в корзині).</td></tr>';
             return;
         }
 
