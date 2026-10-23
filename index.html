@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v1.7 - Складський облік</title>
+    <title>SmartBox v1.8 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
         .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
@@ -78,7 +78,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v1.7</div>
+        <div class="app-version">SmartBox v1.8</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -164,7 +164,7 @@
                     <tr>
                         <th>Код / Назва</th>
                         <th>Норма</th>
-                        <th>Рекомендація (Ящик / К-сть / Дата)</th>
+                        <th id="podsortHeader">Рекомендація (Ящик / К-сть / Дата)</th>
                     </tr>
                 </thead>
                 <tbody id="podsortTableBody">
@@ -316,6 +316,7 @@
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
+    let podsortPickedCount = 0; // Счетчик выполненных позиций подсорта
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -448,13 +449,11 @@
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        // 1. Динамический подсчет общей суммы товара в ящиках
         const grandTotalBoxesQty = globalStock.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
         if (headerTh) {
             headerTh.innerHTML = `Ящики (К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
         }
 
-        // 2. Динамический подсчет общей суммы «Загальний остаток» (Заг.)
         let grandTotalZagQty = 0;
         googleStockData.forEach(g => {
             grandTotalZagQty += (parseInt(g.stock, 10) || 0);
@@ -463,7 +462,6 @@
             metricsTh.innerHTML = `Метка остатков<br><small style="color: #1a73e8; font-weight: normal;">Всього Заг: <b>${grandTotalZagQty} шт.</b></small>`;
         }
 
-        // Группируем остатки inventory_boxes по product_code
         const groupedWarehouse = {};
         globalStock.forEach(item => {
             const code = item.product_code;
@@ -528,18 +526,21 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» ---
+    // --- ЕКРАН «ПІДСОРТ» ЗІ ЗБІРОМ ТА ЛІЧИЛЬНИКОМ ---
     function renderPodsort() {
         const tbody = document.getElementById('podsortTableBody');
+        const headerTh = document.getElementById('podsortHeader');
         if (!tbody) return;
         tbody.innerHTML = '';
 
         if (!globalPlanograms || globalPlanograms.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає налаштованих норм у planograms</td></tr>';
+            if (headerTh) headerTh.innerHTML = `Рекомендація (Ящик / К-сть / Дата)`;
             return;
         }
 
-        let count = 0;
+        let totalDeficitCount = 0;
+        let rowsData = [];
 
         globalPlanograms.forEach(plano => {
             const code = plano.product_code;
@@ -558,20 +559,17 @@
             const currentTZ = totalZag - totalSkl;
             const deficit = norm - currentTZ;
 
-            if (deficit <= 0) return; // В зале достаточно товара
+            if (deficit <= 0) return; 
 
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : '';
 
-            let recommendationHtml = '';
-            let allocated = 0;
-
             stockMatches.forEach(box => {
                 const boxQty = parseInt(box.qty, 10) || 0;
-                if (allocated < deficit && boxQty > 0) {
-                    const needed = deficit - allocated;
+                if (totalDeficitCount < deficit && boxQty > 0) {
+                    const needed = deficit - totalDeficitCount;
                     const take = Math.min(boxQty, needed);
-                    allocated += take;
+                    totalDeficitCount += take;
 
                     let dStr = '';
                     if (box.arrival_date) {
@@ -579,23 +577,74 @@
                         dStr = d.toLocaleDateString('uk-UA');
                     }
 
-                    recommendationHtml += `📍 <b>${box.box_name}</b>: взяти <b>${take} шт.</b> <small style="color:#555">(прихід: ${dStr})</small><br>`;
+                    rowsData.push({
+                        code: code,
+                        prodName: prodName,
+                        norm: norm,
+                        currentTZ: currentTZ,
+                        boxName: box.box_name,
+                        takeQty: take,
+                        arrivalDate: dStr
+                    });
                 }
             });
+        });
 
-            count++;
+        // Обновляем шапку со счетчиком выполненного / общего количества (например, 0 / 15)
+        if (headerTh) {
+            headerTh.innerHTML = `Рекомендація (Ящик / К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Прогрес виносу: <b>${podsortPickedCount} / ${totalDeficitCount} шт.</b></small>`;
+        }
+
+        if (rowsData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Всі полиці повністю укомплектовані! Підсорт не потрібен.</td></tr>';
+            return;
+        }
+
+        rowsData.forEach((row, index) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><b>${code}</b><br><small style="color:#666">${prodName}</small></td>
-                <td><span class="total-badge">${norm} шт.</span><br><small style="color:#888">Зараз в ТЗ: ${currentTZ} шт.</small></td>
-                <td>${recommendationHtml}</td>
+                <td><b>${row.code}</b><br><small style="color:#666">${row.prodName}</small></td>
+                <td><span class="total-badge">${row.norm} шт.</span><br><small style="color:#888">Зараз в ТЗ: ${row.currentTZ} шт.</small></td>
+                <td>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            📍 <b>${row.boxName}</b>: взяти <b>${row.takeQty} шт.</b> <small style="color:#555">(прихід: ${row.arrivalDate})</small>
+                        </div>
+                        <button class="pick-row-btn" onclick="executePodsortPick('${row.boxName}', '${row.code}', ${row.takeQty}, '${row.prodName}')" title="Винести в зал і списати">✓</button>
+                    </div>
+                </td>
             `;
             tbody.appendChild(tr);
         });
+    }
 
-        if (count === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Всі полиці повністю укомплектовані! Підсорт не потрібен.</td></tr>';
-        }
+    // Быстрое списание рекомендации прямо из окна подсорта (как в корзинке)
+    async function executePodsortPick(boxName, productCode, qtyToPick, productName) {
+        try {
+            const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
+            const boxData = await resBox.json();
+            if (!boxData || boxData.length === 0) { alert("Помилка: ящик не знайдено!"); return; }
+
+            const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
+
+            if (newQty === 0) {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, { method: 'DELETE', headers: HEADERS });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
+                });
+            }
+
+            await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
+                method: 'POST', headers: HEADERS,
+                body: JSON.stringify({ box_name: boxName, product_code: productCode, product_name: productName, qty_moved: qtyToPick })
+            });
+
+            podsortPickedCount += qtyToPick;
+            await loadAllData();
+            renderPodsort();
+            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName} на виніс у зал!`);
+        } catch (e) { console.error(e); }
     }
 
     // --- СКАНЕР: ІНФОРМАЦІЯ ---
