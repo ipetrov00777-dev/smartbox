@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v2.5 - Складський облік</title>
+    <title>SmartBox v2.6 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -62,7 +62,7 @@
         .box-group-header { background: #222222; padding: 8px 12px; font-weight: bold; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
         .box-badge-count { background: #444444; color: #cccccc; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: normal; }
         
-        .item-card { background: #1e1e1e; padding: 10px; display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #2a2a2a; gap: 8px; }
+        .item-card { background: #1e1e1e; padding: 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2a2a2a; gap: 8px; }
         .item-card:last-child { border-bottom: none; }
         
         .card-left-flex { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; }
@@ -73,10 +73,9 @@
         .qty-highlight { font-size: 13px; font-weight: bold; color: #28a745; white-space: nowrap; }
         .prod-name-sub { font-size: 12px; color: #bbb; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         
-        /* Правый блок с переносами для Подсорта */
-        .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 4px; flex-shrink: 0; text-align: right; }
+        .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; flex-shrink: 0; text-align: right; }
         .rem-box-badge { font-size: 12px; font-weight: bold; color: #64b5f6; white-space: nowrap; }
-        .sub-info-text { font-size: 11px; color: #aaa; white-space: nowrap; }
+        .sub-info-text { font-size: 11px; color: #aaa; }
 
         /* Модальное окно для полного фото */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
@@ -110,8 +109,8 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v2.5 - GitHub Release Version -->
-        <div class="app-version">SmartBox v2.5</div>
+        <!-- SmartBox v2.6 - GitHub Release Version -->
+        <div class="app-version">SmartBox v2.6</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -562,7 +561,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» ---
+    // --- ЕКРАН «ПІДСОРТ» (РАЗМЕЩЕНИЕ ПО ФОТОЖАБЕ ПОЛЬЗОВАТЕЛЯ) ---
     function renderPodsort() {
         const container = document.getElementById('podsortCardsContainer');
         const progressHeader = document.getElementById('podsortHeaderProgress');
@@ -634,6 +633,7 @@
                         norm: norm,
                         currentTZ: currentTZ,
                         boxName: box.box_name,
+                        boxQty: boxQty,
                         takeQty: take,
                         arrivalDate: dStr
                     });
@@ -680,13 +680,17 @@
                         <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" alt="Товар">
                         <div class="card-details">
                             <div class="barcode-title">${row.barcode} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
+                            <div style="font-size: 11px; color: #888; margin-bottom: 2px;">прихід: ${row.arrivalDate}</div>
                             <div class="prod-name-sub">${row.prodName}</div>
-                            <div style="font-size: 11px; color: #64b5f6; margin-top: 2px;">Норма: <b>${row.norm} шт.</b> | Зараз в ТЗ: <b>${row.currentTZ} шт.</b></div>
+                            <div style="font-size: 11px; color: #64b5f6; margin-top: 3px; line-height: 1.3;">
+                                Норма: <b>${row.norm} шт.</b><br>
+                                Зараз в ТЗ: <b>${row.currentTZ} шт.</b><br>
+                                В ящику: <b>${row.boxQty} шт.</b>
+                            </div>
                         </div>
                     </div>
                     <div class="card-right-action">
                         <button class="pick-row-btn" onclick="executePodsortPick('${row.boxName}', '${row.code}', ${row.takeQty}, '${row.prodName}', '${row.barcode}')" title="Винести в зал і списати">✓</button>
-                        <div class="sub-info-text" style="margin-top: 4px;">прихід: ${row.arrivalDate}</div>
                     </div>
                 `;
                 boxGroupContainer.appendChild(itemCard);
