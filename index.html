@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v2.8 - Складський облік</title>
+    <title>SmartBox v2.9 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -109,8 +109,8 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v2.8 - GitHub Release Version -->
-        <div class="app-version">SmartBox v2.8</div>
+        <!-- SmartBox v2.9 - GitHub Release Version -->
+        <div class="app-version">SmartBox v2.9</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -560,7 +560,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» (ОБЩЕЕ КОЛИЧЕСТВО НА ВИНОС) ---
+    // --- ЕКРАН «ПІДСОРТ» (ИСКЛЮЧЕНИЕ ЗАРЕЗЕРВИРОВАННЫХ ИЗ ШАПКИ И СПИСКА) ---
     function renderPodsort() {
         const container = document.getElementById('podsortCardsContainer');
         const progressHeader = document.getElementById('podsortHeaderProgress');
@@ -573,10 +573,14 @@
             return;
         }
 
-        // 1. Считаем общий дефицит по всем позициям для шапки
-        let totalSystemDeficit = 0;
+        const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
+
+        // 1. Считаем дефицит ТОЛЬКО для товаров, которых НЕТ в корзине (зарезервированных)
+        let totalActiveDeficit = 0;
         globalPlanograms.forEach(plano => {
             const code = plano.product_code;
+            if (reservedProductCodesInCart.includes(code?.toLowerCase())) return;
+
             const norm = parseInt(plano.shelf_capacity, 10) || 0;
             if (norm <= 0) return;
 
@@ -590,13 +594,12 @@
             const currentTZ = totalZag - totalSkl;
             const deficit = norm - currentTZ;
             if (deficit > 0) {
-                totalSystemDeficit += deficit;
+                totalActiveDeficit += deficit;
             }
         });
 
-        // 2. Формируем список отображаемых строк (исключая то, что уже в корзине)
+        // 2. Формируем список отображаемых строк
         let rowsData = [];
-        const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
 
         globalPlanograms.forEach(plano => {
             const code = plano.product_code;
@@ -660,7 +663,7 @@
         });
 
         if (progressHeader) {
-            progressHeader.innerText = `Загальна к-сть на винос: ${totalSystemDeficit} шт.`;
+            progressHeader.innerText = `Загальна к-сть на винос: ${totalActiveDeficit} шт.`;
         }
 
         if (rowsData.length === 0) {
