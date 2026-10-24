@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v2.6 - Складський облік</title>
+    <title>SmartBox v2.7 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -109,8 +109,8 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v2.6 - GitHub Release Version -->
-        <div class="app-version">SmartBox v2.6</div>
+        <!-- SmartBox v2.7 - GitHub Release Version -->
+        <div class="app-version">SmartBox v2.7</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -561,7 +561,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» (РАЗМЕЩЕНИЕ ПО ФОТОЖАБЕ ПОЛЬЗОВАТЕЛЯ) ---
+    // --- ЕКРАН «ПІДСОРТ» (ПРАВИЛЬНЫЙ РАСЧЕТ ОБЩЕГО ДЕФИЦИТА) ---
     function renderPodsort() {
         const container = document.getElementById('podsortCardsContainer');
         const progressHeader = document.getElementById('podsortHeaderProgress');
@@ -574,9 +574,29 @@
             return;
         }
 
-        let totalDeficitCount = 0;
-        let rowsData = [];
+        // 1. Сначала считаем общий дефицит по всем позициям (полный объем подсорта независимо от корзины)
+        let totalSystemDeficit = 0;
+        globalPlanograms.forEach(plano => {
+            const code = plano.product_code;
+            const norm = parseInt(plano.shelf_capacity, 10) || 0;
+            if (norm <= 0) return;
 
+            const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === code.toLowerCase());
+            const totalSkl = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
+            if (totalSkl <= 0) return;
+
+            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === code.toLowerCase());
+            const totalZag = gItem ? (parseInt(gItem.stock, 10) || 0) : totalSkl;
+
+            const currentTZ = totalZag - totalSkl;
+            const deficit = norm - currentTZ;
+            if (deficit > 0) {
+                totalSystemDeficit += deficit;
+            }
+        });
+
+        // 2. Формируем список отображаемых строк (исключая то, что уже в корзине)
+        let rowsData = [];
         const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
 
         globalPlanograms.forEach(plano => {
@@ -617,7 +637,6 @@
                     const take = Math.min(boxQty, needed);
                     
                     allocatedForThisProduct += take;
-                    totalDeficitCount += take;
 
                     let dStr = '—';
                     if (box.arrival_date) {
@@ -642,7 +661,7 @@
         });
 
         if (progressHeader) {
-            progressHeader.innerText = `Прогрес виносу: ${podsortPickedCount} / ${totalDeficitCount} шт.`;
+            progressHeader.innerText = `Прогрес виносу: ${podsortPickedCount} / ${totalSystemDeficit} шт.`;
         }
 
         if (rowsData.length === 0) {
