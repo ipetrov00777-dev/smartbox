@@ -3,61 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v2.3 - Складський облік</title>
+    <title>SmartBox v2.4 - Складський облік</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #333; }
-        .container { max-width: 650px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
+        .container { max-width: 650px; margin: 0 auto; padding: 15px; box-sizing: border-box; }
         
         .screen { display: none; }
         .screen.active { display: block; }
 
-        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .back-btn { background: #5f6368; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; }
-        .back-btn:hover { background: #3c4043; }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #1e1e1e; padding: 12px 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+        .back-btn { background: #333; color: #fff; border: 1px solid #555; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .back-btn:hover { background: #444; }
 
         .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-        .menu-btn { background: #fff; border: 2px solid #1a73e8; color: #1a73e8; padding: 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; position: relative; }
+        .menu-btn { background: #1e1e1e; border: 2px solid #1a73e8; color: #1a73e8; padding: 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: all 0.2s; position: relative; }
         .menu-btn:hover { background: #1a73e8; color: #fff; }
         .menu-btn.full-width { grid-column: span 2; background: #28a745; color: #fff; border-color: #28a745; }
         .menu-btn.full-width:hover { background: #218838; }
         
         .badge-count { position: absolute; top: 10px; right: 10px; background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
 
-        .card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .card { background: #1e1e1e; padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); margin-bottom: 15px; }
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
-        input, select { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #1a73e8; border-radius: 6px; font-size: 18px; outline: none; }
+        input, select { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #1a73e8; border-radius: 6px; font-size: 18px; outline: none; background: #2b2b2b; color: #fff; }
         
-        .product-info-box { background: #e8f0fe; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #1a73e8; }
-        .product-info-box h3 { margin: 0 0 8px 0; color: #1a73e8; font-size: 18px; }
+        .product-info-box { background: #1a2733; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #1a73e8; }
+        .product-info-box h3 { margin: 0 0 8px 0; color: #64b5f6; font-size: 18px; }
         .product-info-box p { margin: 4px 0; font-size: 14px; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
-        th { background: #f1f3f4; }
-        .total-badge { background: #e8f0fe; color: #1a73e8; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background: #2a2a2a; }
+        .total-badge { background: #1a2733; color: #64b5f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
         
-        .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #ccc !important; }
+        .qty-input-table { width: 65px !important; padding: 6px !important; font-size: 15px !important; text-align: center; border: 1px solid #555 !important; }
         
         .global-cart-btn { margin-top: 15px; background: #28a745; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.2s; cursor: pointer; }
         .global-cart-btn:hover { background: #218838; }
-        .global-cart-btn:disabled { background: #d6d8db; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+        .global-cart-btn:disabled { background: #444; color: #888; cursor: not-allowed; opacity: 0.7; }
         
-        .pick-row-btn { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: bold; }
-        .pick-row-btn:hover { background: #218838; }
+        .pick-row-btn { background: #1b5e20; color: #4caf50; border: 1px solid #4caf50; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: bold; transition: all 0.2s; }
+        .pick-row-btn:hover { background: #4caf50; color: #fff; }
         
-        .cart-header-flex { display: flex; justify-content: space-between; align-items: center; }
-        .edit-toggle-btn { background: #f1f3f4; border: 1px solid #ccc; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+        /* Стили карточек в стиле AppSheet для Корзинки */
+        .cart-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .edit-toggle-btn { background: #2a2a2a; color: #aaa; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
         .edit-toggle-btn.active { background: #1a73e8; color: white; border-color: #1a73e8; }
-        .batch-delete-btn { background: #dc3545; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; font-weight: bold; margin-top: 15px; cursor: pointer; display: none; }
+        .batch-delete-btn { background: #dc3545; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: bold; margin-top: 15px; cursor: pointer; display: none; }
         .batch-delete-btn:hover { background: #c82333; }
 
-        .sync-stamp { font-size: 12px; color: #555; font-weight: normal; margin-top: 4px; }
+        .box-group-header { background: #252525; padding: 8px 12px; font-weight: bold; font-size: 15px; border-radius: 6px 6px 0 0; color: #90caf9; display: flex; justify-content: space-between; margin-top: 15px; border-bottom: 1px solid #333; }
         
-        tr.missing-data-row { background-color: #ffe6e6 !important; color: #d93025 !important; }
-        tr.missing-data-row td { border-color: #f5c6cb !important; }
+        .item-card { background: #1e1e1e; border: 1px solid #2e2e2e; padding: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2a2a2a; position: relative; }
+        .item-card:last-child { border-radius: 0 0 6px 6px; }
+        
+        .card-left-flex { display: flex; align-items: center; gap: 12px; flex: 1; }
+        .product-thumb { width: 55px; height: 55px; object-fit: cover; border-radius: 6px; border: 1px solid #444; cursor: pointer; background: #2b2b2b; }
+        .card-details { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+        
+        .barcode-title { font-size: 15px; font-weight: bold; color: #28a745; display: flex; align-items: center; gap: 6px; }
+        .prod-name-sub { font-size: 13px; color: #bbb; line-height: 1.2; }
+        
+        .card-right-action { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-left: 10px; }
+        .rem-box-badge { font-size: 13px; font-weight: bold; color: #64b5f6; display: flex; align-items: center; gap: 4px; }
 
-        .app-version { text-align: center; margin-top: 25px; color: #888; font-size: 13px; font-weight: bold; }
+        /* Модальное окно для полного фото */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-img { max-width: 90%; max-height: 80%; border-radius: 8px; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+        .modal-close-btn { position: absolute; top: 20px; right: 20px; color: white; font-size: 30px; font-weight: bold; cursor: pointer; }
+
+        .sync-stamp { font-size: 12px; color: #888; font-weight: normal; margin-top: 4px; }
+        .app-version { text-align: center; margin-top: 25px; color: #666; font-size: 13px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -73,7 +91,7 @@
         <div class="menu-grid">
             <button class="menu-btn" onclick="openSection('infoSection')">ℹ Інформація</button>
             <button class="menu-btn" onclick="openSection('podsortSection')">🔄 Підсорт</button>
-            <button class="menu-btn" style="background: #e8f0fe;" onclick="openSection('warehouseSection')">📦 Склад</button>
+            <button class="menu-btn" style="background: #1a2733;" onclick="openSection('warehouseSection')">📦 Склад</button>
             <button class="menu-btn" onclick="openSection('shelfSection')">📍 ШТ. на полке</button>
             <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
             <button class="menu-btn" onclick="openSection('historySection')">📜 Історія</button>
@@ -82,7 +100,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v2.3</div>
+        <div class="app-version">SmartBox v2.4</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -105,7 +123,7 @@
                 <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                 <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
                 <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
-                <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">0 шт.</span></p>
+                <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #1b5e20; color: #81c784;">0 шт.</span></p>
             </div>
 
             <p style="margin-bottom: 5px;"><b>Місця зберігання на складі (FIFO):</b></p>
@@ -118,8 +136,7 @@
                         <th>К-сть</th>
                     </tr>
                 </thead>
-                <tbody id="resLocationsBody">
-                </tbody>
+                <tbody id="resLocationsBody"></tbody>
             </table>
 
             <button id="globalCartBtn" class="global-cart-btn" disabled onclick="addAllToCart()">+ Додати все в корзинку</button>
@@ -136,7 +153,7 @@
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         <div class="card">
-            <p><small style="color: #666;">Повний список товарів, що зберігаються в ящиках на складі, з деталізацією та метками балансу.</small></p>
+            <p><small style="color: #aaa;">Повний список товарів у ящиках з метками остатков.</small></p>
             <table>
                 <thead>
                     <tr>
@@ -146,7 +163,7 @@
                     </tr>
                 </thead>
                 <tbody id="warehouseTableBody">
-                    <tr><td colspan="3" style="text-align: center; color: #777;">Завантаження товарів...</td></tr>
+                    <tr><td colspan="3" style="text-align: center; color: #777;">Завантаження...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -162,7 +179,7 @@
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         <div class="card">
-            <p><small style="color: #666;">Розрахунок дефіциту в торговім залі: ТЗ (Заг - Скл) порівнюється з нормою полки (N*).</small></p>
+            <p><small style="color: #aaa;">Розрахунок дефіциту в торговім залі.</small></p>
             <table>
                 <thead>
                     <tr>
@@ -172,13 +189,13 @@
                     </tr>
                 </thead>
                 <tbody id="podsortTableBody">
-                    <tr><td colspan="3" style="text-align: center; color: #777;">Формування підсорту...</td></tr>
+                    <tr><td colspan="3" style="text-align: center; color: #777;">Формування...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- 5. РОЗДІЛ: КОРЗИНКА -->
+    <!-- 5. РОЗДІЛ: КОРЗИНКА (КАРТОЧНЫЙ ДИЗАЙН APPSHEET) -->
     <div id="cartSection" class="screen">
         <div class="header-bar">
             <h2>🛒 Корзинка збору товару</h2>
@@ -186,23 +203,14 @@
         </div>
         <div class="card">
             <div class="cart-header-flex">
-                <h3>Завдання на збір у зал</h3>
-                <button id="cartEditToggleBtn" class="edit-toggle-btn" onclick="toggleCartEditMode()" title="Режим редагування / видалення">✎ Режим видалення</button>
+                <h3 style="margin:0;">Завдання на збір у зал</h3>
+                <button id="cartEditToggleBtn" class="edit-toggle-btn" onclick="toggleCartEditMode()">✎ Режим видалення</button>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th id="cartSelectTh" style="display: none; width: 40px; text-align: center;">✓</th>
-                        <th>Ящик</th>
-                        <th>Код / Назва</th>
-                        <th>К-сть</th>
-                        <th>Дія</th>
-                    </tr>
-                </thead>
-                <tbody id="cartTableBody">
-                    <tr><td colspan="5" style="text-align: center; color: #777;">Корзинка порожня</td></tr>
-                </tbody>
-            </table>
+
+            <div id="cartCardsContainer">
+                <!-- Карточки товаров и групп ящиков генерируются динамически -->
+            </div>
+
             <button id="batchDeleteBtn" class="batch-delete-btn" onclick="deleteSelectedCartItems()">🗑 Видалити вибрані позиції</button>
         </div>
     </div>
@@ -239,13 +247,13 @@
         <div class="card">
             <div class="form-group">
                 <label for="arrivalBoxInput">1. Скануйте ящик (напр. Box-12+):</label>
-                <input type="text" id="arrivalBoxInput" placeholder="Скануйте ящик..." style="background: #e8f0fe;">
+                <input type="text" id="arrivalBoxInput" placeholder="Скануйте ящик..." style="background: #1a2733;">
             </div>
             <div class="form-group">
                 <label for="arrivalScanInput">2. Потокове сканування товару:</label>
                 <input type="text" id="arrivalScanInput" placeholder="Скануйте товар сюди..." disabled>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: #e2f0cb; padding: 10px 15px; border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: #1b5e20; padding: 10px 15px; border-radius: 6px;">
                 <b>В ящику: <span id="arrivalBoxNameDisplay">—</span></b>
                 <b>Відскановано: <span id="arrivalCountDisplay">0</span></b>
             </div>
@@ -263,7 +271,7 @@
                     </tr>
                 </thead>
                 <tbody id="arrivalTableBody">
-                    <tr><td colspan="4" style="text-align: center; color: #777;">Відскануйте ящик і починайте сканування товару</td></tr>
+                    <tr><td colspan="4" style="text-align: center; color: #777;">Відскануйте ящик</td></tr>
                 </tbody>
             </table>
         </div>
@@ -300,6 +308,12 @@
 
 </div>
 
+<!-- Модальное окно для полноразмерного фото -->
+<div id="imageModal" class="modal-overlay" onclick="closeImageModal()">
+    <span class="modal-close-btn">&times;</span>
+    <img id="modalImg" class="modal-img" src="" alt="Фото товару">
+</div>
+
 <script>
     const SUPABASE_URL = "https://hjsdayynmmzajerjgqrb.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2RheXlubW16YWplcmpncXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY4MTEsImV4cCI6MjEwMTkzMjgxMX0.4lMQf7lpymLCEAA4OJCUwGUda1nKfoxduADDbaWGo0w";
@@ -310,6 +324,8 @@
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
     };
+
+    const NO_IMAGE_PLACEHOLDER = "https://via.placeholder.com/100?text=No+Photo";
 
     let activeOrderId = null;
     let dbCartItems = [];
@@ -465,7 +481,7 @@
 
         const grandTotalBoxesQty = globalStock.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
         if (headerTh) {
-            headerTh.innerHTML = `Ящики (К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
+            headerTh.innerHTML = `Ящики (К-сть / Дата)<br><small style="color: #64b5f6; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
         }
 
         let grandTotalZagQty = 0;
@@ -473,7 +489,7 @@
             grandTotalZagQty += (parseInt(g.stock, 10) || 0);
         });
         if (metricsTh) {
-            metricsTh.innerHTML = `Метка остатков<br><small style="color: #1a73e8; font-weight: normal;">Всього Заг: <b>${grandTotalZagQty} шт.</b></small>`;
+            metricsTh.innerHTML = `Метка остатков<br><small style="color: #64b5f6; font-weight: normal;">Всього Заг: <b>${grandTotalZagQty} шт.</b></small>`;
         }
 
         const groupedWarehouse = {};
@@ -525,14 +541,14 @@
                     const d = new Date(b.arrival_date);
                     dStr = d.toLocaleDateString('uk-UA');
                 }
-                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#555">(${dStr})</small><br>`;
+                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dStr})</small><br>`;
             });
 
             const tr = document.createElement('tr');
-            if (isMissingData) tr.classList.add('missing-data-row');
+            if (isMissingData) tr.style.backgroundColor = '#3e1a1a';
 
             tr.innerHTML = `
-                <td><b>${code}</b><br><small>${prodName}</small></td>
+                <td><b>${code}</b><br><small style="color:#aaa">${prodName}</small></td>
                 <td>${boxesHtml}</td>
                 <td><b>Заг.-${zagStr} ТЗ -${tzStr} Скл.-${sklStr} ${normStr}</b></td>
             `;
@@ -548,7 +564,7 @@
         tbody.innerHTML = '';
 
         if (!globalPlanograms || globalPlanograms.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає налаштованих норм у planograms</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Немає налаштованих норм</td></tr>';
             if (headerTh) headerTh.innerHTML = `Рекомендація (Ящик / К-сть / Дата)`;
             return;
         }
@@ -618,23 +634,23 @@
         });
 
         if (headerTh) {
-            headerTh.innerHTML = `Рекомендація (Ящик / К-сть / Дата)<br><small style="color: #1a73e8; font-weight: normal;">Прогрес виносу: <b>${podsortPickedCount} / ${totalDeficitCount} шт.</b></small>`;
+            headerTh.innerHTML = `Рекомендація (Ящик / К-сть / Дата)<br><small style="color: #64b5f6; font-weight: normal;">Прогрес виносу: <b>${podsortPickedCount} / ${totalDeficitCount} шт.</b></small>`;
         }
 
         if (rowsData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Всі полиці повністю укомплектовані! Підсорт не потрібен (або товари в корзині).</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">Підсорт не потрібен (або товари в корзині).</td></tr>';
             return;
         }
 
         rowsData.forEach((row) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><b>${row.code}</b><br><small style="color:#666">${row.prodName}</small></td>
+                <td><b>${row.code}</b><br><small style="color:#aaa">${row.prodName}</small></td>
                 <td><span class="total-badge">${row.norm} шт.</span><br><small style="color:#888">Зараз в ТЗ: ${row.currentTZ} шт.</small></td>
                 <td>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            📍 <b>${row.boxName}</b>: взяти <b>${row.takeQty} шт.</b> <small style="color:#555">(прихід: ${row.arrivalDate})</small>
+                            📍 <b>${row.boxName}</b>: взяти <b>${row.takeQty} шт.</b> <small style="color:#aaa">(прихід: ${row.arrivalDate})</small>
                         </div>
                         <button class="pick-row-btn" onclick="executePodsortPick('${row.boxName}', '${row.code}', ${row.takeQty}, '${row.prodName}', '${row.barcode}')" title="Винести в зал і списати">✓</button>
                     </div>
@@ -716,7 +732,7 @@
         const tbody = document.getElementById('resLocationsBody');
         tbody.innerHTML = '';
         if (currentScannedMatches.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Товар не знайдено на складі!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ff6b6b;">Товар не знайдено на складі!</td></tr>`;
             document.getElementById('resTotalStock').innerText = `0 шт.`;
             document.getElementById('resTotalQty').innerText = `0 шт.`;
             document.getElementById('globalCartBtn').setAttribute('disabled', 'true');
@@ -732,7 +748,7 @@
             let stockHtml = `${item.originalQty} шт.`;
             if (inCartQty > 0) {
                 const remainder = item.originalQty - inCartQty;
-                stockHtml = `${item.originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${remainder}</span>`;
+                stockHtml = `${item.originalQty} шт. / <span style="color: #ff6b6b; font-weight: bold;">${remainder}</span>`;
             }
 
             let arrivalDateFormatted = '—';
@@ -744,7 +760,7 @@
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item.box_name}</b></td>
-                <td><small style="color: #555;">${arrivalDateFormatted}</small></td>
+                <td><small style="color: #aaa;">${arrivalDateFormatted}</small></td>
                 <td><span class="total-badge" id="availBadge_${idx}">${stockHtml}</span></td>
                 <td><input type="number" id="${inputId}" class="qty-input-table" value="0" min="0" max="${availableForInput}" oninput="handleQtyInput(${idx}, ${availableForInput}, ${item.originalQty}, ${inCartQty})"></td>
             `;
@@ -763,7 +779,7 @@
         let stockHtml = `${originalQty} шт.`;
         if (totalWithCurrentInput > 0) {
             const remainder = originalQty - totalWithCurrentInput;
-            stockHtml = `${originalQty} шт. / <span style="color: #d93025; font-weight: bold;">${remainder}</span>`;
+            stockHtml = `${originalQty} шт. / <span style="color: #ff6b6b; font-weight: bold;">${remainder}</span>`;
         }
         document.getElementById(`availBadge_${idx}`).innerHTML = stockHtml;
         updateSummaryTotals();
@@ -783,7 +799,7 @@
 
         const totalReservedNow = totalAlreadyInCart + totalCurrentInput;
         const totalRemaining = totalOriginalStock - totalReservedNow;
-        const totalStockDisplay = (totalReservedNow > 0) ? `${totalOriginalStock} шт. / <span style="color: #d93025; font-weight: bold;">${totalRemaining}</span>` : `${totalOriginalStock} шт.`;
+        const totalStockDisplay = (totalReservedNow > 0) ? `${totalOriginalStock} шт. / <span style="color: #ff6b6b; font-weight: bold;">${totalRemaining}</span>` : `${totalOriginalStock} шт.`;
 
         document.getElementById('resTotalStock').innerHTML = totalStockDisplay;
         document.getElementById('resTotalQty').innerText = `${totalReservedNow} шт.`;
@@ -826,7 +842,7 @@
         document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
-    // --- КОРЗИНКА (ПРИ РЕДАГУВАННІ ГАЛОЧКИ СХОВАНІ, ПІСЛЯ ВИДАЛЕННЯ РЕЖИМ ЗАКРИВАЄТЬСЯ) ---
+    // --- КОРЗИНКА (КАРТОЧНЫЙ ДИЗАЙН APPSHEET ЗІ СКАНКОДОМ ТА ОСТАТКОМ) ---
     function toggleCartEditMode() {
         isCartEditMode = !isCartEditMode;
         const toggleBtn = document.getElementById('cartEditToggleBtn');
@@ -842,55 +858,83 @@
 
     async function renderCart() {
         await loadAllData();
-        const tbody = document.getElementById('cartTableBody');
-        const selectTh = document.getElementById('cartSelectTh');
+        const container = document.getElementById('cartCardsContainer');
         const batchDeleteBtn = document.getElementById('batchDeleteBtn');
-        tbody.innerHTML = '';
+        if (!container) return;
+        container.innerHTML = '';
 
         if (dbCartItems.length === 0) {
-            if (selectTh) selectTh.style.display = 'none';
             if (batchDeleteBtn) batchDeleteBtn.style.display = 'none';
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Корзинка порожня</td></tr>';
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Корзинка порожня</div>';
             return;
         }
 
-        if (isCartEditMode) {
-            if (selectTh) selectTh.style.display = 'table-cell';
-        } else {
-            if (selectTh) selectTh.style.display = 'none';
-            if (batchDeleteBtn) batchDeleteBtn.style.display = 'none';
+        if (!isCartEditMode && batchDeleteBtn) {
+            batchDeleteBtn.style.display = 'none';
         }
 
-        const sortedItems = [...dbCartItems].sort((a, b) => a.box_name.localeCompare(b.box_name, undefined, { numeric: true, sensitivity: 'base' }));
-        
-        sortedItems.forEach((item) => {
-            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
-            const itemBarcode = prod ? (prod.barcode || item.product_code) : item.product_code;
-
-            const tr = document.createElement('tr');
-            
-            let checkboxTdHtml = '';
-            if (isCartEditMode) {
-                checkboxTdHtml = `<td style="text-align: center;"><input type="checkbox" class="cart-row-checkbox" value="${item.id}" onchange="checkBatchDeleteButton()" style="width: 20px; height: 20px; cursor: pointer;"></td>`;
-            }
-
-            // [ИСПРАВЛЕНИЕ]: Если включен режим редактирования, кнопка списания «✓» скрывается, чтобы кладовщик её не нажал по ошибке!
-            let actionBtnHtml = '';
-            if (!isCartEditMode) {
-                actionBtnHtml = `<button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved}, '${itemBarcode}')" title="Підтвердити і списати">✓</button>`;
-            } else {
-                actionBtnHtml = `<span style="color: #888; font-size: 12px;">Режим видалення</span>`;
-            }
-
-            tr.innerHTML = `
-                ${checkboxTdHtml}
-                <td><b>${item.box_name}</b></td>
-                <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
-                <td><span class="total-badge">${item.qty_reserved} шт.</span></td>
-                <td>${actionBtnHtml}</td>
-            `;
-            tbody.appendChild(tr);
+        // Группировка товаров по ящикам
+        const groupedByBox = {};
+        dbCartItems.forEach(item => {
+            if (!groupedByBox[item.box_name]) groupedByBox[item.box_name] = [];
+            groupedByBox[item.box_name].push(item);
         });
+
+        const sortedBoxNames = Object.keys(groupedByBox).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+        sortedBoxNames.forEach(boxName => {
+            const itemsInBox = groupedByBox[boxName];
+            const boxTotalCount = itemsInBox.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
+
+            // Создаем заголовок ящика (PoL-56)
+            const boxHeader = document.createElement('div');
+            boxHeader.className = 'box-group-header';
+            boxHeader.innerHTML = `<span>📍 ${boxName}</span><span>${itemsInBox.length} поз. (${boxTotalCount} шт.)</span>`;
+            container.appendChild(boxHeader);
+
+            itemsInBox.forEach(item => {
+                const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
+                const barcodeDisplay = prod ? (prod.barcode || item.product_code) : item.product_code;
+                const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+
+                // Расчет остатка в ящике (сколько останется после забора)
+                const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase());
+                const currentBoxQty = stockInBox ? (parseInt(stockInBox.qty, 10) || 0) : 0;
+                const remainingAfterPick = Math.max(0, currentBoxQty - (parseInt(item.qty_reserved, 10) || 0));
+
+                const itemCard = document.createElement('div');
+                itemCard.className = 'item-card';
+
+                let checkboxHtml = '';
+                if (isCartEditMode) {
+                    checkboxHtml = `<input type="checkbox" class="cart-row-checkbox" value="${item.id}" onchange="checkBatchDeleteButton()" style="width: 22px; height: 22px; cursor: pointer; margin-right: 8px;">`;
+                }
+
+                let actionBtnHtml = '';
+                if (!isCartEditMode) {
+                    actionBtnHtml = `<button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved}, '${barcodeDisplay}')" title="Списати">✓</button>`;
+                } else {
+                    actionBtnHtml = `<span style="color: #777; font-size: 11px;">Видалення</span>`;
+                }
+
+                itemCard.innerHTML = `
+                    <div class="card-left-flex">
+                        ${checkboxHtml}
+                        <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" alt="Товар">
+                        <div class="card-details">
+                            <div class="barcode-title">🛒 ${barcodeDisplay} <span style="color:#fff; font-weight:normal;">= (${item.qty_reserved}шт.)</span></div>
+                            <div class="prod-name-sub">${item.product_name || 'Без назви'}</div>
+                        </div>
+                    </div>
+                    <div class="card-right-action">
+                        <div class="rem-box-badge" title="Залишок у ящику після винесення">📦 ${remainingAfterPick}</div>
+                        ${actionBtnHtml}
+                    </div>
+                `;
+                container.appendChild(itemCard);
+            });
+        });
+
         checkBatchDeleteButton();
     }
 
@@ -923,7 +967,6 @@
         try {
             await Promise.all(deletePromises);
             
-            // [ИСПРАВЛЕНИЕ]: После успешного удаления автоматически выходим из режима редактирования (возвращаем кнопку «✎ Режим видалення»)
             isCartEditMode = false;
             const toggleBtn = document.getElementById('cartEditToggleBtn');
             if (toggleBtn) {
@@ -972,6 +1015,17 @@
         } catch (e) { console.error(e); }
     }
 
+    // --- МОДАЛЬНОЕ ОКНО ФОТО ---
+    function openImageModal(url) {
+        if (!url || url === NO_IMAGE_PLACEHOLDER) return;
+        document.getElementById('modalImg').src = url;
+        document.getElementById('imageModal').classList.add('active');
+    }
+
+    function closeImageModal() {
+        document.getElementById('imageModal').classList.remove('active');
+    }
+
     // --- ІСТОРІЯ ---
     async function loadHistory() {
         const tbody = document.getElementById('historyTableBody');
@@ -991,8 +1045,8 @@
                     tr.innerHTML = `
                         <td><small>${dateFormatted}</small></td>
                         <td><b>${item.box_name}</b></td>
-                        <td><b>${item.product_code}</b><br><small style="color:#666">${item.product_name || ''}</small></td>
-                        <td><span class="total-badge" style="background: #e2f0cb; color: #2d6a4f;">${item.qty_moved} шт.</span></td>
+                        <td><b>${item.product_code}</b><br><small style="color:#aaa">${item.product_name || ''}</small></td>
+                        <td><span class="total-badge" style="background: #1b5e20; color: #81c784;">${item.qty_moved} шт.</span></td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -1086,7 +1140,7 @@
         sessionArrivalItems.forEach(item => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><b>${item.scanned_code}</b><br><small style="color:#888">${item.time}</small></td>
+                <td><b>${item.scanned_code}</b><br><small style="color:#aaa">${item.time}</small></td>
                 <td><b>${item.box_name}</b></td>
                 <td><span class="total-badge">${item.product_code}</span></td>
                 <td><b>${item.product_name}</b></td>
