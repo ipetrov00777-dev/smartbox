@@ -47,7 +47,7 @@
         .pick-row-btn { background: #1b5e20; color: #4caf50; border: 1px solid #4caf50; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .pick-row-btn:hover { background: #4caf50; color: #fff; }
         
-        /* Стили карточек в стиле AppSheet для Корзинки и Подсорта */
+        /* Стили шапки и карточек */
         .cart-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
         .cart-header-flex h3 { font-size: 15px; margin: 0; }
         .edit-toggle-btn { background: #2a2a2a; color: #aaa; border: 1px solid #444; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; transition: background 0.2s; }
@@ -55,10 +55,11 @@
         .batch-delete-btn { background: #dc3545; color: white; border: none; padding: 10px; width: 100%; border-radius: 6px; font-size: 15px; font-weight: bold; margin-top: 12px; cursor: pointer; display: none; }
         .batch-delete-btn:hover { background: #c82333; }
 
-        /* Контейнер группы ящика / карточки */
+        /* Контейнер группы ящика */
         .box-group-container { margin-bottom: 14px; background: #1a1a1a; border-radius: 8px; overflow: hidden; border: 1px solid #2e2e2e; }
 
-        .box-group-header { background: #222222; padding: 8px 12px; font-weight: bold; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; justify-content: space-between; }
+        /* Шапка ящика */
+        .box-group-header { background: #222222; padding: 8px 12px; font-weight: bold; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
         .box-badge-count { background: #444444; color: #cccccc; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: normal; }
         
         .item-card { background: #1e1e1e; padding: 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2a2a2a; gap: 10px; }
@@ -177,7 +178,7 @@
         </div>
     </div>
 
-    <!-- 4. РОЗДІЛ: ПІДСОРТ (ОБНОВЛЕННЫЙ КАРТОЧНЫЙ ДИЗАЙН) -->
+    <!-- 4. РОЗДІЛ: ПІДСОРТ (С ГРУППИРОВКОЙ ПО ЯЩИКАМ) -->
     <div id="podsortSection" class="screen">
         <div class="header-bar">
             <div>
@@ -193,7 +194,7 @@
             </div>
 
             <div id="podsortCardsContainer" style="margin-top: 10px;">
-                <!-- Карточки подсорта генерируются динамически -->
+                <!-- Карточки подсорта сгруппированные по ящикам генерируются динамически -->
             </div>
         </div>
     </div>
@@ -559,7 +560,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» (НОВЫЙ КАРТОЧНЫЙ ДИЗАЙН) ---
+    // --- ЕКРАН «ПІДСОРТ» (С ГРУППИРОВКОЙ ПО ЯЩИКАМ КАК В КОРЗИНКЕ) ---
     function renderPodsort() {
         const container = document.getElementById('podsortCardsContainer');
         const progressHeader = document.getElementById('podsortHeaderProgress');
@@ -647,26 +648,49 @@
             return;
         }
 
-        rowsData.forEach((row) => {
-            const itemCard = document.createElement('div');
-            itemCard.className = 'item-card';
+        // Группируем по ящикам
+        const groupedByBox = {};
+        rowsData.forEach(row => {
+            if (!groupedByBox[row.boxName]) groupedByBox[row.boxName] = [];
+            groupedByBox[row.boxName].push(row);
+        });
 
-            itemCard.innerHTML = `
-                <div class="card-left-flex">
-                    <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" alt="Товар">
-                    <div class="card-details">
-                        <div class="barcode-title">${row.barcode} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
-                        <div class="prod-name-sub">${row.prodName}</div>
-                        <div style="font-size: 11px; color: #64b5f6; margin-top: 2px;">Норма: <b>${row.norm} шт.</b> | Зараз в ТЗ: <b>${row.currentTZ} шт.</b></div>
+        const sortedBoxNames = Object.keys(groupedByBox).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+        sortedBoxNames.forEach(boxName => {
+            const itemsInBox = groupedByBox[boxName];
+            const boxTotalQtySum = itemsInBox.reduce((sum, i) => sum + i.takeQty, 0);
+
+            const boxGroupContainer = document.createElement('div');
+            boxGroupContainer.className = 'box-group-container';
+
+            const boxHeader = document.createElement('div');
+            boxHeader.className = 'box-group-header';
+            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxTotalQtySum}</span>`;
+            boxGroupContainer.appendChild(boxHeader);
+
+            itemsInBox.forEach(row => {
+                const itemCard = document.createElement('div');
+                itemCard.className = 'item-card';
+
+                itemCard.innerHTML = `
+                    <div class="card-left-flex">
+                        <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" alt="Товар">
+                        <div class="card-details">
+                            <div class="barcode-title">${row.barcode} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
+                            <div class="prod-name-sub">${row.prodName}</div>
+                            <div style="font-size: 11px; color: #64b5f6; margin-top: 2px;">Норма: <b>${row.norm} шт.</b> | Зараз в ТЗ: <b>${row.currentTZ} шт.</b></div>
+                        </div>
                     </div>
-                </div>
-                <div class="card-right-action">
-                    <div class="rem-box-badge">📍 ${row.boxName}</div>
-                    <div class="sub-info-text">прихід: ${row.arrivalDate}</div>
-                    <button class="pick-row-btn" style="margin-top: 4px;" onclick="executePodsortPick('${row.boxName}', '${row.code}', ${row.takeQty}, '${row.prodName}', '${row.barcode}')" title="Винести в зал і списати">✓</button>
-                </div>
-            `;
-            container.appendChild(itemCard);
+                    <div class="card-right-action">
+                        <div class="sub-info-text">прихід: ${row.arrivalDate}</div>
+                        <button class="pick-row-btn" style="margin-top: 4px;" onclick="executePodsortPick('${row.boxName}', '${row.code}', ${row.takeQty}, '${row.prodName}', '${row.barcode}')" title="Винести в зал і списати">✓</button>
+                    </div>
+                `;
+                boxGroupContainer.appendChild(itemCard);
+            });
+
+            container.appendChild(boxGroupContainer);
         });
     }
 
