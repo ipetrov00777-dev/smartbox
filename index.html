@@ -47,20 +47,27 @@
         .pick-row-btn { background: #1b5e20; color: #4caf50; border: 1px solid #4caf50; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .pick-row-btn:hover { background: #4caf50; color: #fff; }
         
-        /* Стили карточек в стиле AppSheet для Корзинки */
-        .cart-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+        /* Стили корзинки */
+        .cart-header-sticky { position: sticky; top: 0; background: #1e1e1e; z-index: 10; padding: 8px 0 12px 0; border-bottom: 1px solid #333; margin-bottom: 10px; }
+        .cart-header-flex { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .cart-header-flex h3 { font-size: 15px; margin: 0; }
         .edit-toggle-btn { background: #2a2a2a; color: #aaa; border: 1px solid #444; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; transition: background 0.2s; }
         .edit-toggle-btn.active { background: #1a73e8; color: white; border-color: #1a73e8; }
+        
+        /* Блок прогресса сбора */
+        .progress-bar-container { display: flex; justify-content: space-between; align-items: center; background: #1a2733; border: 1px solid #1a73e8; padding: 8px 12px; border-radius: 6px; margin-top: 8px; font-size: 14px; font-weight: bold; }
+        .progress-bar-container span { color: #64b5f6; }
+
         .batch-delete-btn { background: #dc3545; color: white; border: none; padding: 10px; width: 100%; border-radius: 6px; font-size: 15px; font-weight: bold; margin-top: 12px; cursor: pointer; display: none; }
         .batch-delete-btn:hover { background: #c82333; }
 
         /* Контейнер группы ящика */
         .box-group-container { margin-bottom: 14px; background: #1a1a1a; border-radius: 8px; overflow: hidden; border: 1px solid #2e2e2e; }
 
-        /* Шапка ящика в стиле AppSheet: имя и количество слева */
-        .box-group-header { background: #222222; padding: 8px 12px; font-weight: bold; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
-        .box-badge-count { background: #444444; color: #cccccc; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: normal; }
+        /* Шапка ящика в стиле AppSheet (иконка и бейдж синие) */
+        .box-group-header { background: #222222; padding: 8px 12px; font-weight: bold; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; }
+        .box-icon { color: #1a73e8; font-size: 16px; }
+        .box-badge-count { background: #1a73e8; color: #ffffff; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; }
         
         .item-card { background: #1e1e1e; padding: 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2a2a2a; gap: 10px; }
         .item-card:last-child { border-bottom: none; }
@@ -210,10 +217,19 @@
             <h2>🛒 Корзинка збору товару</h2>
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
-        <div class="card">
-            <div class="cart-header-flex">
-                <h3>Завдання на збір у зал</h3>
-                <button id="cartEditToggleBtn" class="edit-toggle-btn" onclick="toggleCartEditMode()">✎ Режим видалення</button>
+        
+        <div class="card" style="position: relative;">
+            <!-- Закрепленная шапка корзинки и прогресс сбора -->
+            <div class="cart-header-sticky">
+                <div class="cart-header-flex">
+                    <h3>Завдання на збір у зал</h3>
+                    <button id="cartEditToggleBtn" class="edit-toggle-btn" onclick="toggleCartEditMode()">✎ Режим видалення</button>
+                </div>
+                <!-- Прогресс выполнения (всегда виден при прокрутке) -->
+                <div class="progress-bar-container">
+                    <span>Прогресс виконання:</span>
+                    <b id="cartProgressText">0 / 0</b>
+                </div>
             </div>
 
             <div id="cartCardsContainer">
@@ -869,8 +885,16 @@
         await loadAllData();
         const container = document.getElementById('cartCardsContainer');
         const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+        const progressText = document.getElementById('cartProgressText');
         if (!container) return;
         container.innerHTML = '';
+
+        const totalItemsInCartCount = dbCartItems.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
+        
+        // Пример прогресса: сколько собрано / всего в корзине (можно настроить логику под ваши задачи)
+        if (progressText) {
+            progressText.innerText = `${totalItemsInCartCount} / ${totalItemsInCartCount}`;
+        }
 
         if (dbCartItems.length === 0) {
             if (batchDeleteBtn) batchDeleteBtn.style.display = 'none';
@@ -892,18 +916,15 @@
 
         sortedBoxNames.forEach(boxName => {
             const itemsInBox = groupedByBox[boxName];
-            
-            // Суммируем количество штук для всех товаров внутри этого ящика
             const boxTotalQtySum = itemsInBox.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
 
-            // Создаем единый контейнер группы для визуальной «склейки» ящика и его товаров
             const boxGroupContainer = document.createElement('div');
             boxGroupContainer.className = 'box-group-container';
 
             const boxHeader = document.createElement('div');
             boxHeader.className = 'box-group-header';
-            // Бейдж с общим количеством теперь в самом верху слева рядом с названием ящика
-            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxTotalQtySum}</span>`;
+            // Синий значок коробки и синий бейдж количества
+            boxHeader.innerHTML = `<span class="box-icon">📦</span><span>${boxName}</span><span class="box-badge-count">${boxTotalQtySum}</span>`;
             boxGroupContainer.appendChild(boxHeader);
 
             itemsInBox.forEach(item => {
