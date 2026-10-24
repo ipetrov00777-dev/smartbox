@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v2.7 - Складський облік</title>
+    <title>SmartBox v2.8 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -109,8 +109,8 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v2.7 - GitHub Release Version -->
-        <div class="app-version">SmartBox v2.7</div>
+        <!-- SmartBox v2.8 - GitHub Release Version -->
+        <div class="app-version">SmartBox v2.8</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -191,7 +191,7 @@
         <div class="card">
             <div class="cart-header-flex">
                 <h3>Розрахунок дефіциту в торговім залі</h3>
-                <span id="podsortHeaderProgress" style="font-size: 12px; color: #64b5f6; font-weight: bold;">Прогрес виносу: 0 / 0 шт.</span>
+                <span id="podsortHeaderProgress" style="font-size: 12px; color: #64b5f6; font-weight: bold;">Загальна к-сть на винос: 0 шт.</span>
             </div>
 
             <div id="podsortCardsContainer" style="margin-top: 10px;">
@@ -346,7 +346,6 @@
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
-    let podsortPickedCount = 0; 
     
     let isCartEditMode = false;
 
@@ -561,7 +560,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» (ПРАВИЛЬНЫЙ РАСЧЕТ ОБЩЕГО ДЕФИЦИТА) ---
+    // --- ЕКРАН «ПІДСОРТ» (ОБЩЕЕ КОЛИЧЕСТВО НА ВИНОС) ---
     function renderPodsort() {
         const container = document.getElementById('podsortCardsContainer');
         const progressHeader = document.getElementById('podsortHeaderProgress');
@@ -570,11 +569,11 @@
 
         if (!globalPlanograms || globalPlanograms.length === 0) {
             container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Немає налаштованих норм</div>';
-            if (progressHeader) progressHeader.innerText = `Прогрес виносу: 0 / 0 шт.`;
+            if (progressHeader) progressHeader.innerText = `Загальна к-сть на винос: 0 шт.`;
             return;
         }
 
-        // 1. Сначала считаем общий дефицит по всем позициям (полный объем подсорта независимо от корзины)
+        // 1. Считаем общий дефицит по всем позициям для шапки
         let totalSystemDeficit = 0;
         globalPlanograms.forEach(plano => {
             const code = plano.product_code;
@@ -661,7 +660,7 @@
         });
 
         if (progressHeader) {
-            progressHeader.innerText = `Прогрес виносу: ${podsortPickedCount} / ${totalSystemDeficit} шт.`;
+            progressHeader.innerText = `Загальна к-сть на винос: ${totalSystemDeficit} шт.`;
         }
 
         if (rowsData.length === 0) {
@@ -743,7 +742,6 @@
                 body: JSON.stringify({ box_name: boxName, product_code: productCode, product_name: productName, qty_moved: qtyToPick })
             });
 
-            podsortPickedCount += qtyToPick;
             await loadAllData();
             renderPodsort();
             alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName} на виніс у зал!`);
