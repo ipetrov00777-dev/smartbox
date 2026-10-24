@@ -64,7 +64,8 @@
         .product-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #444; cursor: pointer; background: #2b2b2b; flex-shrink: 0; }
         .card-details { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
         
-        .barcode-title { font-size: 13px; font-weight: bold; color: #28a745; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .barcode-title { font-size: 13px; font-weight: bold; color: #28a745; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+        .qty-highlight { font-size: 14px; font-weight: bold; color: #ffffff; }
         .prod-name-sub { font-size: 12px; color: #bbb; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         
         .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 6px; flex-shrink: 0; }
@@ -921,7 +922,7 @@
                         ${checkboxHtml}
                         <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" alt="Товар">
                         <div class="card-details">
-                            <div class="barcode-title">🛒 ${barcodeDisplay} <span style="color:#aaa; font-size: 11px;">(${item.qty_reserved} шт.)</span></div>
+                            <div class="barcode-title">${barcodeDisplay} <span class="qty-highlight">= (${item.qty_reserved} шт.)</span></div>
                             <div class="prod-name-sub">${item.product_name || 'Без назви'}</div>
                         </div>
                     </div>
