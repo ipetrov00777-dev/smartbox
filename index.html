@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v3.1 - Складський облік</title>
+    <title>SmartBox v3.2 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -109,8 +109,8 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v3.1 - GitHub Release Version -->
-        <div class="app-version">SmartBox v3.1</div>
+        <!-- SmartBox v3.2 - GitHub Release Version -->
+        <div class="app-version">SmartBox v3.2</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -560,7 +560,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» (ДОБАВЛЕНО СЛОВО «поз.» В БЕЙДЖИК) ---
+    // --- ЕКРАН «ПІДСОРТ» ---
     function renderPodsort() {
         const container = document.getElementById('podsortCardsContainer');
         const progressHeader = document.getElementById('podsortHeaderProgress');
@@ -575,7 +575,6 @@
 
         const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
 
-        // 1. Считаем дефицит ТОЛЬКО для товаров, которых НЕТ в корзине
         let totalActiveDeficit = 0;
         globalPlanograms.forEach(plano => {
             const code = plano.product_code;
@@ -598,7 +597,6 @@
             }
         });
 
-        // 2. Формируем список отображаемых строк
         let rowsData = [];
 
         globalPlanograms.forEach(plano => {
@@ -671,7 +669,6 @@
             return;
         }
 
-        // Группируем по ящикам
         const groupedByBox = {};
         rowsData.forEach(row => {
             if (!groupedByBox[row.boxName]) groupedByBox[row.boxName] = [];
@@ -689,7 +686,6 @@
 
             const boxHeader = document.createElement('div');
             boxHeader.className = 'box-group-header';
-            // Добавлено слово "поз." после цифры количества позиций
             boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
             boxGroupContainer.appendChild(boxHeader);
 
@@ -903,7 +899,7 @@
         document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
-    // --- КОРЗИНКА ---
+    // --- КОРЗИНКА (СЧЕТЧИК СЧИТАЕТ КОЛИЧЕСТВО ПОЗИЦИЙ В ЯЩИКЕ С ФОРМАТОМ "поз.") ---
     function toggleCartEditMode() {
         isCartEditMode = !isCartEditMode;
         const toggleBtn = document.getElementById('cartEditToggleBtn');
@@ -944,14 +940,16 @@
 
         sortedBoxNames.forEach(boxName => {
             const itemsInBox = groupedByBox[boxName];
-            const boxTotalQtySum = itemsInBox.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
+            // Считаем количество позиций (строк) в корзине для этого ящика
+            const boxPositionsCount = itemsInBox.length;
 
             const boxGroupContainer = document.createElement('div');
             boxGroupContainer.className = 'box-group-container';
 
             const boxHeader = document.createElement('div');
             boxHeader.className = 'box-group-header';
-            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxTotalQtySum}</span>`;
+            // Вывод названия ящика и количества позиций с припиской "поз."
+            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
             boxGroupContainer.appendChild(boxHeader);
 
             itemsInBox.forEach(item => {
