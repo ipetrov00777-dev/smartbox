@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v3.2 - Складський облік</title>
+    <title>SmartBox v4.0 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -75,7 +75,6 @@
         
         .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; flex-shrink: 0; text-align: right; }
         .rem-box-badge { font-size: 12px; font-weight: bold; color: #64b5f6; white-space: nowrap; }
-        .sub-info-text { font-size: 11px; color: #aaa; }
 
         /* Модальное окно для полного фото */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
@@ -109,8 +108,8 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v3.2 - GitHub Release Version -->
-        <div class="app-version">SmartBox v3.2</div>
+        <!-- SmartBox v4.0 - GitHub Release Version -->
+        <div class="app-version">SmartBox v4.0</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -194,9 +193,7 @@
                 <span id="podsortHeaderProgress" style="font-size: 12px; color: #64b5f6; font-weight: bold;">Загальна к-сть на винос: 0 шт.</span>
             </div>
 
-            <div id="podsortCardsContainer" style="margin-top: 10px;">
-                <!-- Карточки подсорта генерируются динамически -->
-            </div>
+            <div id="podsortCardsContainer" style="margin-top: 10px;"></div>
         </div>
     </div>
 
@@ -212,9 +209,7 @@
                 <button id="cartEditToggleBtn" class="edit-toggle-btn" onclick="toggleCartEditMode()">✎ Режим видалення</button>
             </div>
 
-            <div id="cartCardsContainer">
-                <!-- Карточки генерируются динамически -->
-            </div>
+            <div id="cartCardsContainer"></div>
 
             <button id="batchDeleteBtn" class="batch-delete-btn" onclick="deleteSelectedCartItems()">🗑 Видалити вибрані позиції</button>
         </div>
@@ -308,8 +303,52 @@
         </div>
     </div>
 
-    <!-- Заглушка для фото -->
-    <div id="photoSection" class="screen"><div class="header-bar"><h2>📷 Фото</h2><button class="back-btn" onclick="goToMenu()">Назад</button></div><div class="card"><p>Розділ у розробці</p></div></div>
+    <!-- 9. РОЗДІЛ: ФОТО ТОВАРІВ (НОВЫЙ ФУНКЦИОНАЛ) -->
+    <div id="photoSection" class="screen">
+        <div class="header-bar">
+            <h2>📷 Керування фото товару</h2>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        
+        <div class="card">
+            <div class="form-group">
+                <label for="photoScanInput">Швидкий пошук / Сканування товару:</label>
+                <input type="text" id="photoScanInput" placeholder="Скануйте штрихкод або код..." autofocus>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <button id="photoFilterBtn" class="edit-toggle-btn" onclick="togglePhotoFilter()">🔍 Тільки без фото</button>
+                <span id="photoCounterText" style="font-size: 12px; color: #888;">Всього товарів: 0</span>
+            </div>
+        </div>
+
+        <!-- Карточка найденного товара через сканер -->
+        <div id="photoEditorCard" class="card" style="display: none; border: 2px solid #1a73e8;">
+            <div class="cart-header-flex">
+                <h3>Редагування фото товару</h3>
+                <button class="back-btn" onclick="closePhotoEditor()" style="padding: 2px 8px; font-size: 11px;">✕ Закрити</button>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; margin-top: 10px;">
+                <img id="editProductThumb" src="" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #555; background: #2b2b2b;" alt="Фото">
+                <div style="flex: 1; min-width: 0;">
+                    <b id="editProductCode" style="color: #64b5f6; font-size: 13px;">---</b>
+                    <div id="editProductName" style="font-size: 13px; color: #fff; margin: 4px 0;">---</div>
+                    <div id="editProductBarcode" style="font-size: 11px; color: #888;">Штрихкод: ---</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px;">
+                <input type="file" id="productImageFile" accept="image/*" style="display: none;" onchange="uploadProductPhoto(this)">
+                <button class="global-cart-btn" style="background: #1a73e8; margin-top: 0;" onclick="document.getElementById('productImageFile').click()">📷 Завантажити / Змінити фото</button>
+            </div>
+        </div>
+
+        <!-- Общий список каталога товаров для фото -->
+        <div class="card">
+            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 8px;">Каталог товарів</h3>
+            <div id="photoCatalogContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto;">
+                <!-- Динамический список -->
+            </div>
+        </div>
+    </div>
 
 </div>
 
@@ -346,8 +385,11 @@
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
-    
     let isCartEditMode = false;
+
+    // Состояние локального фильтра для экрана фото (хранится в памяти браузера)
+    let photoOnlyWithoutPhoto = localStorage.getItem('photoOnlyWithoutPhoto') === 'true';
+    let currentEditingProduct = null;
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -409,6 +451,13 @@
             document.getElementById('shelfResultCard').style.display = 'none';
             document.getElementById('shelfScanInput').value = '';
             setTimeout(() => document.getElementById('shelfScanInput')?.focus(), 100);
+        }
+        if (screenId === 'photoSection') {
+            loadAllData().then(() => renderPhotoCatalog());
+            document.getElementById('photoEditorCard').style.display = 'none';
+            document.getElementById('photoScanInput').value = '';
+            updatePhotoFilterButtonUI();
+            setTimeout(() => document.getElementById('photoScanInput')?.focus(), 100);
         }
     }
 
@@ -899,7 +948,7 @@
         document.getElementById('cartBadge').innerText = totalCartItems;
     }
 
-    // --- КОРЗИНКА (СЧЕТЧИК СЧИТАЕТ КОЛИЧЕСТВО ПОЗИЦИЙ В ЯЩИКЕ С ФОРМАТОМ "поз.") ---
+    // --- КОРЗИНКА ---
     function toggleCartEditMode() {
         isCartEditMode = !isCartEditMode;
         const toggleBtn = document.getElementById('cartEditToggleBtn');
@@ -940,7 +989,6 @@
 
         sortedBoxNames.forEach(boxName => {
             const itemsInBox = groupedByBox[boxName];
-            // Считаем количество позиций (строк) в корзине для этого ящика
             const boxPositionsCount = itemsInBox.length;
 
             const boxGroupContainer = document.createElement('div');
@@ -948,7 +996,6 @@
 
             const boxHeader = document.createElement('div');
             boxHeader.className = 'box-group-header';
-            // Вывод названия ящика и количества позиций с припиской "поз."
             boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
             boxGroupContainer.appendChild(boxHeader);
 
@@ -1259,6 +1306,173 @@
             document.getElementById('shelfResultCard').style.display = 'none';
             document.getElementById('shelfScanInput').focus();
         } catch (e) { alert("Помилка збереження."); }
+    }
+
+    // --- РАЗДЕЛ «ФОТО» И УПРАВЛЕНИЕ СНИМКАМИ ---
+    const photoScanInput = document.getElementById('photoScanInput');
+    if (photoScanInput) {
+        photoScanInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const code = photoScanInput.value.trim();
+                photoScanInput.value = '';
+                if (code) findProductForPhoto(code);
+            }
+        });
+    }
+
+    function togglePhotoFilter() {
+        photoOnlyWithoutPhoto = !photoOnlyWithoutPhoto;
+        localStorage.setItem('photoOnlyWithoutPhoto', photoOnlyWithoutPhoto);
+        updatePhotoFilterButtonUI();
+        renderPhotoCatalog();
+    }
+
+    function updatePhotoFilterButtonUI() {
+        const btn = document.getElementById('photoFilterBtn');
+        if (!btn) return;
+        if (photoOnlyWithoutPhoto) {
+            btn.classList.add('active');
+            btn.innerText = '🔍 Фільтр: Тільки без фото (Увімк)';
+        } else {
+            btn.classList.remove('active');
+            btn.innerText = '🔍 Тільки без фото';
+        }
+    }
+
+    function renderPhotoCatalog() {
+        const container = document.getElementById('photoCatalogContainer');
+        const counter = document.getElementById('photoCounterText');
+        if (!container) return;
+        container.innerHTML = '';
+
+        let list = [...globalProducts];
+
+        if (photoOnlyWithoutPhoto) {
+            list = list.filter(p => !p.photo_url || p.photo_url === NO_IMAGE_PLACEHOLDER || p.photo_url.trim() === '');
+        }
+
+        if (counter) {
+            counter.innerText = `Знайдено товарів: ${list.length}`;
+        }
+
+        if (list.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 15px;">Список порожній</div>';
+            return;
+        }
+
+        list.forEach(prod => {
+            const thumbUrl = (prod.photo_url && prod.photo_url.trim() !== '') ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'item-card';
+            itemDiv.style.cursor = 'pointer';
+            itemDiv.onclick = () => selectProductForPhotoEdit(prod);
+
+            itemDiv.innerHTML = `
+                <div class="card-left-flex">
+                    <img src="${thumbUrl}" class="product-thumb" alt="Фото">
+                    <div class="card-details">
+                        <div class="barcode-title">${prod.product_code}</div>
+                        <div class="prod-name-sub">${prod.product_name || 'Без назви'}</div>
+                        <div style="font-size: 11px; color: #888;">Штрихкод: ${prod.barcode || '—'}</div>
+                    </div>
+                </div>
+                <div class="card-right-action">
+                    <span style="font-size: 11px; color: #64b5f6; background: #1a2733; padding: 4px 8px; border-radius: 4px;">Змінити</span>
+                </div>
+            `;
+            container.appendChild(itemDiv);
+        });
+    }
+
+    function findProductForPhoto(code) {
+        const codeLower = code.toLowerCase();
+        const prod = globalProducts.find(p => 
+            (p.product_code && p.product_code.toLowerCase() === codeLower) || 
+            (p.barcode && p.barcode.toLowerCase() === codeLower)
+        );
+
+        if (!prod) {
+            alert("Товар із таким кодом чи штрихкодом не знайдено в базі!");
+            return;
+        }
+
+        selectProductForPhotoEdit(prod);
+    }
+
+    function selectProductForPhotoEdit(prod) {
+        currentEditingProduct = prod;
+        const editorCard = document.getElementById('photoEditorCard');
+        editorCard.style.display = 'block';
+
+        document.getElementById('editProductCode').innerText = prod.product_code;
+        document.getElementById('editProductName').innerText = prod.product_name || 'Без назви';
+        document.getElementById('editProductBarcode').innerText = `Штрихкод: ${prod.barcode || '—'}`;
+        
+        const thumbUrl = (prod.photo_url && prod.photo_url.trim() !== '') ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+        document.getElementById('editProductThumb').src = thumbUrl;
+        
+        editorCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closePhotoEditor() {
+        currentEditingProduct = null;
+        document.getElementById('photoEditorCard').style.display = 'none';
+        document.getElementById('photoScanInput').focus();
+    }
+
+    async function uploadProductPhoto(inputElem) {
+        if (!inputElem.files || inputElem.files.length === 0 || !currentEditingProduct) return;
+        const file = inputElem.files[0];
+
+        try {
+            alert("Завантаження фото в облако...");
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${currentEditingProduct.product_code}_${Date.now()}.${fileExt}`;
+            const filePath = `photos/${fileName}`;
+
+            // Загружаем в Supabase Storage (в публичный бакет 'product-photos')
+            const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/product-photos/${filePath}`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    'ContentType': file.type
+                },
+                body: file
+            });
+
+            if (!uploadRes.ok) {
+                throw new Error("Помилка завантаження файлу в сховище Supabase Storage.");
+            }
+
+            // Получаем публичную публичную ссылку
+            const publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
+
+            // Обновляем ссылку в таблице products
+            const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentEditingProduct.product_code)}`, {
+                method: 'PATCH',
+                headers: HEADERS,
+                body: JSON.stringify({ photo_url: publicUrlRes })
+            });
+
+            if (!updateRes.ok) {
+                throw new Error("Помилка оновлення бази даних.");
+            }
+
+            alert("Фото успішно оновлено!");
+            inputElem.value = ''; // сбрасываем input
+            await loadAllData();
+            
+            // Обновляем текущий редактор и каталог
+            const updatedProd = globalProducts.find(p => p.product_code === currentEditingProduct.product_code);
+            if (updatedProd) selectProductForPhotoEdit(updatedProd);
+            renderPhotoCatalog();
+
+        } catch (e) {
+            console.error(e);
+            alert("Сталася помилка при завантаженні фото. Перевірте, чи створено публічний бакет 'product-photos' у Supabase Storage.");
+        }
     }
 
     window.onload = function() {
