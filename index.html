@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v3.0 - Складський облік</title>
+    <title>SmartBox v3.1 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -109,8 +109,8 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v3.0 - GitHub Release Version -->
-        <div class="app-version">SmartBox v3.0</div>
+        <!-- SmartBox v3.1 - GitHub Release Version -->
+        <div class="app-version">SmartBox v3.1</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -560,7 +560,7 @@
         });
     }
 
-    // --- ЕКРАН «ПІДСОРТ» (СЧЕТЧИК СЧИТАЕТ КОЛИЧЕСТВО ПОЗИЦИЙ В ЯЩИКЕ) ---
+    // --- ЕКРАН «ПІДСОРТ» (ДОБАВЛЕНО СЛОВО «поз.» В БЕЙДЖИК) ---
     function renderPodsort() {
         const container = document.getElementById('podsortCardsContainer');
         const progressHeader = document.getElementById('podsortHeaderProgress');
@@ -682,7 +682,6 @@
 
         sortedBoxNames.forEach(boxName => {
             const itemsInBox = groupedByBox[boxName];
-            // Считаем количество позиций (элементов в массиве itemsInBox) вместо суммы их штук
             const boxPositionsCount = itemsInBox.length;
 
             const boxGroupContainer = document.createElement('div');
@@ -690,7 +689,8 @@
 
             const boxHeader = document.createElement('div');
             boxHeader.className = 'box-group-header';
-            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxPositionsCount}</span>`;
+            // Добавлено слово "поз." после цифры количества позиций
+            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
             boxGroupContainer.appendChild(boxHeader);
 
             itemsInBox.forEach(row => {
