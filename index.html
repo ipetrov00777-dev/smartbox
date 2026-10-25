@@ -103,8 +103,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v4.1 - Build Timestamp -->
-        <div class="app-version">SmartBox v4.1 (Оновлено: 26.10.2026 00:15)</div>
+        <div class="app-version">SmartBox v4.1.1 (Оновлено: 26.10.2026 00:45)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -1446,6 +1445,8 @@
 
             alert("Фото успішно оновлено!");
             inputElem.value = '';
+            
+            // Мгновенно перезагружаем данные, чтобы обновить UI и миниатюры
             await loadAllData();
             
             const updatedProd = globalProducts.find(p => p.product_code === currentEditingProduct.product_code);
