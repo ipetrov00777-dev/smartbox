@@ -47,7 +47,6 @@
         .pick-row-btn { background: #1b5e20; color: #4caf50; border: 1px solid #4caf50; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .pick-row-btn:hover { background: #4caf50; color: #fff; }
         
-        /* Стили шапки и карточек */
         .cart-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
         .cart-header-flex h3 { font-size: 15px; margin: 0; }
         .edit-toggle-btn { background: #2a2a2a; color: #aaa; border: 1px solid #444; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; transition: background 0.2s; }
@@ -55,10 +54,7 @@
         .batch-delete-btn { background: #dc3545; color: white; border: none; padding: 10px; width: 100%; border-radius: 6px; font-size: 15px; font-weight: bold; margin-top: 12px; cursor: pointer; display: none; }
         .batch-delete-btn:hover { background: #c82333; }
 
-        /* Контейнер группы ящика */
         .box-group-container { margin-bottom: 14px; background: #1a1a1a; border-radius: 8px; overflow: hidden; border: 1px solid #2e2e2e; }
-
-        /* Шапка ящика */
         .box-group-header { background: #222222; padding: 8px 12px; font-weight: bold; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
         .box-badge-count { background: #444444; color: #cccccc; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: normal; }
         
@@ -76,7 +72,6 @@
         .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; flex-shrink: 0; text-align: right; }
         .rem-box-badge { font-size: 12px; font-weight: bold; color: #64b5f6; white-space: nowrap; }
 
-        /* Модальное окно для полного фото */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
         .modal-overlay.active { display: flex; }
         .modal-img { max-width: 90%; max-height: 80%; border-radius: 8px; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
@@ -108,7 +103,6 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <!-- SmartBox v4.0 - GitHub Release Version -->
         <div class="app-version">SmartBox v4.0</div>
     </div>
 
@@ -321,7 +315,6 @@
             </div>
         </div>
 
-        <!-- Карточка найденного товара через сканер -->
         <div id="photoEditorCard" class="card" style="display: none; border: 2px solid #1a73e8;">
             <div class="cart-header-flex">
                 <h3>Редагування фото товару</h3>
@@ -341,7 +334,6 @@
             </div>
         </div>
 
-        <!-- Общий список каталога товаров для фото -->
         <div class="card">
             <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 8px;">Каталог товарів</h3>
             <div id="photoCatalogContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto;"></div>
@@ -350,7 +342,6 @@
 
 </div>
 
-<!-- Модальное окно для полноразмерного фото -->
 <div id="imageModal" class="modal-overlay" onclick="closeImageModal()">
     <span class="modal-close-btn">&times;</span>
     <img id="modalImg" class="modal-img" src="" alt="Фото товару">
@@ -1439,11 +1430,16 @@
 
             const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentEditingProduct.product_code)}`, {
                 method: 'PATCH',
-                headers: HEADERS,
+                headers: {
+                    ...HEADERS,
+                    'Prefer': 'return=minimal'
+                },
                 body: JSON.stringify({ photo_url: publicUrlRes })
             });
 
             if (!updateRes.ok) {
+                const errText = await updateRes.text();
+                console.error("DB Update Error:", errText);
                 throw new Error("Помилка оновлення бази даних.");
             }
 
