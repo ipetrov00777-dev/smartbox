@@ -29,9 +29,11 @@
         label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 13px; }
         input, select { width: 100%; padding: 10px; box-sizing: border-box; border: 2px solid #1a73e8; border-radius: 6px; font-size: 16px; outline: none; background: #2b2b2b; color: #fff; }
         
-        .product-info-box { background: #1a2733; padding: 10px; border-radius: 6px; margin-bottom: 12px; border-left: 4px solid #1a73e8; }
-        .product-info-box h3 { margin: 0 0 6px 0; color: #64b5f6; font-size: 16px; }
-        .product-info-box p { margin: 3px 0; font-size: 13px; }
+        .product-info-box { background: #1a2733; padding: 10px; border-radius: 6px; margin-bottom: 12px; border-left: 4px solid #1a73e8; display: flex; gap: 12px; align-items: flex-start; }
+        .product-info-thumb { width: 65px; height: 65px; object-fit: contain; background: #ffffff; border-radius: 6px; border: 1px solid #444; cursor: pointer; flex-shrink: 0; }
+        .product-info-details { flex: 1; min-width: 0; }
+        .product-info-details h3 { margin: 0 0 6px 0; color: #64b5f6; font-size: 16px; }
+        .product-info-details p { margin: 3px 0; font-size: 13px; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
         th, td { border: 1px solid #333; padding: 6px; text-align: left; vertical-align: middle; }
@@ -103,7 +105,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.1.2 (Оновлено: 26.10.2026 01:36)</div>
+        <div class="app-version">SmartBox v4.1.3 (Оновлено: 26.10.2026 01:42)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -122,11 +124,14 @@
 
         <div id="productResultCard" class="card" style="display: none;">
             <div class="product-info-box">
-                <h3 id="resProductName">Назва товару</h3>
-                <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
-                <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
-                <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
-                <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #1b5e20; color: #81c784;">0 шт.</span></p>
+                <img id="resProductThumb" src="" class="product-info-thumb" onclick="openImageModal(this.src)" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'" alt="Фото товару">
+                <div class="product-info-details">
+                    <h3 id="resProductName">Назва товару</h3>
+                    <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
+                    <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
+                    <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
+                    <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #1b5e20; color: #81c784;">0 шт.</span></p>
+                </div>
             </div>
 
             <p style="margin-bottom: 5px;"><b>Місця зберігання на складі (FIFO):</b></p>
@@ -828,6 +833,9 @@
         currentProductCode = prodInfo ? prodInfo.product_code : code;
         currentProductName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
         
+        const photoUrl = prodInfo && prodInfo.photo_url ? prodInfo.photo_url : NO_IMAGE_PLACEHOLDER;
+        document.getElementById('resProductThumb').src = photoUrl;
+
         const matches = globalStock.filter(item => item.product_code.toLowerCase() === currentProductCode.toLowerCase());
         matches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
