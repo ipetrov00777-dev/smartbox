@@ -62,7 +62,7 @@
         .item-card:last-child { border-bottom: none; }
         
         .card-left-flex { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; }
-        .product-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #444; cursor: pointer; background: #2b2b2b; flex-shrink: 0; }
+        .product-thumb { width: 50px; height: 50px; object-fit: contain; background: #ffffff; border-radius: 6px; border: 1px solid #444; cursor: pointer; flex-shrink: 0; }
         .card-details { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
         
         .barcode-title { font-size: 13px; font-weight: bold; color: #28a745; word-break: break-all; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
@@ -103,7 +103,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.1.1 (Оновлено: 26.10.2026 01:15)</div>
+        <div class="app-version">SmartBox v4.1.2 (Оновлено: 26.10.2026 01:36)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -321,7 +321,7 @@
                 <button class="back-btn" onclick="closePhotoEditor()" style="padding: 2px 8px; font-size: 11px;">✕ Закрити</button>
             </div>
             <div style="display: flex; gap: 12px; align-items: center; margin-top: 10px;">
-                <img id="editProductThumb" src="" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #555; background: #2b2b2b;" alt="Фото" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+                <img id="editProductThumb" src="" style="width: 80px; height: 80px; object-fit: contain; background: #ffffff; border-radius: 6px; border: 1px solid #555;" alt="Фото" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
                 <div style="flex: 1; min-width: 0;">
                     <b id="editProductCode" style="color: #64b5f6; font-size: 13px;">---</b>
                     <div id="editProductName" style="font-size: 13px; color: #fff; margin: 4px 0;">---</div>
@@ -487,7 +487,6 @@
             
             if (stockRes.ok) globalStock = await stockRes.json();
             
-            // Надежное слияние данных каталога и таблицы продуктов для гарантии наличия photo_url
             if (prodRes.ok) {
                 globalProducts = await prodRes.json();
                 if (rawProductsRes.ok) {
@@ -1473,7 +1472,6 @@
             alert("Фото успішно оновлено!");
             inputElem.value = '';
             
-            // Мгновенная перезагрузка данных и обновление интерфейса
             await loadAllData();
             
             const updatedProd = globalProducts.find(p => p.product_code === currentEditingProduct.product_code);
