@@ -103,7 +103,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.1.1 (Оновлено: 26.10.2026 00:45)</div>
+        <div class="app-version">SmartBox v4.1.1 (Оновлено: 26.10.2026 01:15)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -321,7 +321,7 @@
                 <button class="back-btn" onclick="closePhotoEditor()" style="padding: 2px 8px; font-size: 11px;">✕ Закрити</button>
             </div>
             <div style="display: flex; gap: 12px; align-items: center; margin-top: 10px;">
-                <img id="editProductThumb" src="" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #555; background: #2b2b2b;" alt="Фото">
+                <img id="editProductThumb" src="" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #555; background: #2b2b2b;" alt="Фото" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
                 <div style="flex: 1; min-width: 0;">
                     <b id="editProductCode" style="color: #64b5f6; font-size: 13px;">---</b>
                     <div id="editProductName" style="font-size: 13px; color: #fff; margin: 4px 0;">---</div>
@@ -475,9 +475,10 @@
 
     async function loadAllData() {
         try {
-            const [stockRes, prodRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
+            const [stockRes, prodRes, rawProductsRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
                 fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/products?select=product_code,photo_url`, { headers: HEADERS }),
                 activeOrderId ? fetch(`${SUPABASE_URL}/rest/v1/order_items?order_id=eq.${activeOrderId}&select=*`, { headers: HEADERS }) : Promise.resolve({ ok: false }),
                 fetch(`${SUPABASE_URL}/rest/v1/planograms?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/google_stock?select=*`, { headers: HEADERS }),
@@ -485,7 +486,28 @@
             ]);
             
             if (stockRes.ok) globalStock = await stockRes.json();
-            if (prodRes.ok) globalProducts = await prodRes.json();
+            
+            // Надежное слияние данных каталога и таблицы продуктов для гарантии наличия photo_url
+            if (prodRes.ok) {
+                globalProducts = await prodRes.json();
+                if (rawProductsRes.ok) {
+                    const rawProducts = await rawProductsRes.json();
+                    const photoMap = {};
+                    rawProducts.forEach(p => {
+                        if (p.product_code && p.photo_url) {
+                            photoMap[p.product_code.toLowerCase()] = p.photo_url;
+                        }
+                    });
+                    globalProducts = globalProducts.map(p => {
+                        const code = p.product_code ? p.product_code.toLowerCase() : '';
+                        return {
+                            ...p,
+                            photo_url: p.photo_url || photoMap[code] || null
+                        };
+                    });
+                }
+            }
+
             if (cartRes.ok) dbCartItems = await cartRes.json();
             if (planoRes.ok) globalPlanograms = await planoRes.json();
             if (gStockRes.ok) googleStockData = await gStockRes.json();
@@ -730,7 +752,7 @@
 
                 itemCard.innerHTML = `
                     <div class="card-left-flex">
-                        <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" alt="Товар">
+                        <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Товар">
                         <div class="card-details">
                             <div class="barcode-title">${row.barcode} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
                             <div style="font-size: 11px; color: #888; margin-bottom: 2px;">прихід: ${row.arrivalDate}</div>
@@ -1010,7 +1032,7 @@
                 itemCard.innerHTML = `
                     <div class="card-left-flex">
                         ${checkboxHtml}
-                        <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" alt="Товар">
+                        <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Товар">
                         <div class="card-details">
                             <div class="barcode-title">${barcodeDisplay} <span class="qty-highlight">= (${item.qty_reserved} шт.)</span></div>
                             <div class="prod-name-sub">${item.product_name || 'Без назви'}</div>
@@ -1341,23 +1363,28 @@
         }
 
         list.forEach(prod => {
-            const thumbUrl = (prod.photo_url && prod.photo_url.trim() !== '') ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+            const hasPhoto = (prod.photo_url && prod.photo_url.trim() !== '' && prod.photo_url !== NO_IMAGE_PLACEHOLDER);
+            const thumbUrl = hasPhoto ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+            
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item-card';
-            itemDiv.style.cursor = 'pointer';
-            itemDiv.onclick = () => selectProductForPhotoEdit(prod);
+
+            const linkHtml = hasPhoto 
+                ? `<a href="${prod.photo_url}" target="_blank" onclick="event.stopPropagation();" style="font-size: 11px; color: #64b5f6; text-decoration: underline; margin-top: 4px; display: inline-block;">🔗 Відкрити посилання</a>`
+                : `<span style="font-size: 11px; color: #777; margin-top: 4px; display: inline-block;">Немає посилання</span>`;
 
             itemDiv.innerHTML = `
-                <div class="card-left-flex">
-                    <img src="${thumbUrl}" class="product-thumb" alt="Фото">
+                <div class="card-left-flex" style="cursor: pointer;" onclick="selectProductForPhotoEdit(${JSON.stringify(prod).replace(/"/g, '&quot;')})">
+                    <img src="${thumbUrl}" class="product-thumb" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
                     <div class="card-details">
                         <div class="barcode-title">${prod.product_code}</div>
                         <div class="prod-name-sub">${prod.product_name || 'Без назви'}</div>
                         <div style="font-size: 11px; color: #888;">Штрихкод: ${prod.barcode || '—'}</div>
+                        ${linkHtml}
                     </div>
                 </div>
                 <div class="card-right-action">
-                    <span style="font-size: 11px; color: #64b5f6; background: #1a2733; padding: 4px 8px; border-radius: 4px;">Змінити</span>
+                    <button class="edit-toggle-btn" onclick="selectProductForPhotoEdit(${JSON.stringify(prod).replace(/"/g, '&quot;')})">Змінити</button>
                 </div>
             `;
             container.appendChild(itemDiv);
@@ -1405,7 +1432,7 @@
         const file = inputElem.files[0];
 
         try {
-            alert("Завантаження фото в облако...");
+            alert("Завантаження фото в хмару...");
             const fileExt = file.name.split('.').pop();
             const fileName = `${currentEditingProduct.product_code}_${Date.now()}.${fileExt}`;
             const filePath = `photos/${fileName}`;
@@ -1446,7 +1473,7 @@
             alert("Фото успішно оновлено!");
             inputElem.value = '';
             
-            // Мгновенно перезагружаем данные, чтобы обновить UI и миниатюры
+            // Мгновенная перезагрузка данных и обновление интерфейса
             await loadAllData();
             
             const updatedProd = globalProducts.find(p => p.product_code === currentEditingProduct.product_code);
