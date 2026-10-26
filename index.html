@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.5.3 - Складський облік (FIFO з партіями)</title>
+    <title>SmartBox v4.5.4 - Складський облік (FIFO з розумним приходом)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -111,7 +111,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.5.3 (Оновлено: 26.10.2026 12:00)</div>
+        <div class="app-version">SmartBox v4.5.4 (Оновлено: 26.10.2026 12:30)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -124,7 +124,7 @@
         <div class="card">
             <div class="form-group">
                 <label for="scanInput">Скануйте товар або штрихкод:</label>
-                <input type="text" id="scanInput" placeholder="Скануйте сюди..." autofocus>
+                <input type="text" id="scanInput" placeholder="Скануйте сюду..." autofocus>
             </div>
         </div>
 
@@ -837,11 +837,32 @@
 
     function openMixedDatesModal(batchesJsonStr) {
         try {
-            const batches = JSON.parse(decodeURIComponent(batchesJsonStr));
+            const rawBatches = JSON.parse(decodeURIComponent(batchesJsonStr));
+            
+            const aggregatedMap = {};
+            rawBatches.forEach(b => {
+                const dateKey = b.date; 
+                const qtyVal = parseInt(b.qty, 10) || 0;
+                if (!aggregatedMap[dateKey]) aggregatedMap[dateKey] = 0;
+                aggregatedMap[dateKey] += qtyVal;
+            });
+
+            const aggregatedBatches = Object.keys(aggregatedMap).map(dateStr => {
+                const parts = dateStr.split('.');
+                const sortDate = parts.length === 3 ? new Date(`${parts[2]}-${parts[1]}-${parts[0]}`) : new Date(0);
+                return {
+                    date: dateStr,
+                    qty: aggregatedMap[dateStr],
+                    sortTime: sortDate.getTime()
+                };
+            });
+
+            aggregatedBatches.sort((a, b) => a.sortTime - b.sortTime);
+
             const listContainer = document.getElementById('mixedDatesListContainer');
             listContainer.innerHTML = '';
             
-            batches.forEach(b => {
+            aggregatedBatches.forEach(b => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'modal-batch-item';
                 itemDiv.innerHTML = `<span>📅 ${b.date}</span> <b>${b.qty} шт.</b>`;
@@ -1364,9 +1385,10 @@
         }
 
         try {
+            const todayDateStr = new Date().toISOString().split('T')[0];
             const nowIso = new Date().toISOString();
 
-            // 1. Проверяем наличие ящика и товара в inventory_boxes
+            // 1. Обновляем общую сумму в inventory_boxes
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existing = await checkRes.json();
 
@@ -1382,21 +1404,30 @@
                 });
             }
 
-            // 2. ВСЕГДА создаем новую отдельную партию в таблице box_batches с текущим временем!
-            const batchRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
-                method: 'POST', 
-                headers: HEADERS,
-                body: JSON.stringify({ 
-                    box_name: currentArrivalBox, 
-                    product_code: finalProductCode, 
-                    qty: 1, 
-                    arrival_date: nowIso 
-                })
-            });
+            // 2. УМНЫЙ УЧЕТ ПАРТИЙ: суммируем в сегодняшнюю партию, если она уже есть
+            const batchesRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
+            const existingBatches = await batchesRes.json();
 
-            if (!batchRes.ok) {
-                const errText = await batchRes.text();
-                console.error("Помилка запису партії в box_batches:", errText);
+            const todayBatch = existingBatches.find(b => b.arrival_date && b.arrival_date.startsWith(todayDateStr));
+
+            if (todayBatch) {
+                const updatedBatchQty = (parseInt(todayBatch.qty, 10) || 0) + 1;
+                await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${todayBatch.id}`, {
+                    method: 'PATCH',
+                    headers: HEADERS,
+                    body: JSON.stringify({ qty: updatedBatchQty })
+                });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
+                    method: 'POST', 
+                    headers: HEADERS,
+                    body: JSON.stringify({ 
+                        box_name: currentArrivalBox, 
+                        product_code: finalProductCode, 
+                        qty: 1, 
+                        arrival_date: nowIso 
+                    })
+                });
             }
 
             sessionArrivalItems.unshift({ scanned_code: scannedCode, box_name: currentArrivalBox, product_code: finalProductCode, product_name: finalProductName, time: new Date().toLocaleTimeString('uk-UA') });
