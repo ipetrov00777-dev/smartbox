@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.3 - Складський облік</title>
+    <title>SmartBox v4.3.1 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -108,7 +108,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.3.0 (Оновлено: 26.10.2026 03:08)</div>
+        <div class="app-version">SmartBox v4.3.1 (Оновлено: 26.10.2026 08:15)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -662,28 +662,6 @@
 
         const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
 
-        let totalActiveDeficit = 0;
-        globalPlanograms.forEach(plano => {
-            const code = plano.product_code;
-            if (reservedProductCodesInCart.includes(code?.toLowerCase())) return;
-
-            const norm = parseInt(plano.shelf_capacity, 10) || 0;
-            if (norm <= 0) return;
-
-            const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === code.toLowerCase());
-            const totalSkl = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
-            if (totalSkl <= 0) return;
-
-            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === code.toLowerCase());
-            const totalZag = gItem ? (parseInt(gItem.stock, 10) || 0) : totalSkl;
-
-            const currentTZ = totalZag - totalSkl;
-            const deficit = norm - currentTZ;
-            if (deficit > 0) {
-                totalActiveDeficit += deficit;
-            }
-        });
-
         let rowsData = [];
 
         globalPlanograms.forEach(plano => {
@@ -748,6 +726,9 @@
                 }
             });
         });
+
+        // 💡 СЧИТАЕМ ИТОГ ЧЕСТНО: суммируем takeQty только по реальным строкам отображаемого списка
+        const totalActiveDeficit = rowsData.reduce((sum, row) => sum + row.takeQty, 0);
 
         if (progressHeader) {
             progressHeader.innerText = `Загальна к-сть на винос: ${totalActiveDeficit} шт.`;
