@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.6.2 - Складський облік (З безпечним видаленням)</title>
+    <title>SmartBox v4.6.3 - Складський облік (Повні назви в БД)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -71,7 +71,9 @@
         
         .barcode-title { font-size: 13px; font-weight: bold; color: #28a745; word-break: break-all; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
         .qty-highlight { font-size: 13px; font-weight: bold; color: #28a745; white-space: nowrap; }
-        .prod-name-sub { font-size: 12px; color: #bbb; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        /* ЗМІНЕНО: тепер назва товару не обрізається, а переноситься повністю */
+        .prod-name-sub { font-size: 12px; color: #bbb; line-height: 1.3; word-break: break-word; overflow-wrap: break-word; }
         
         .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; flex-shrink: 0; text-align: right; }
 
@@ -114,7 +116,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.6.2 (Оновлено: 26.10.2026)</div>
+        <div class="app-version">SmartBox v4.6.3 (Оновлено: 26.10.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -1919,7 +1921,6 @@
         if (!currentDbEditingProduct) return;
         const code = currentDbEditingProduct.product_code;
 
-        // Захисна перевірка на наявність на складі
         const inStock = globalStock.find(s => s.product_code?.toLowerCase() === code.toLowerCase() && (parseInt(s.qty, 10) || 0) > 0);
         if (inStock) {
             alert(`Увага! Товар "${code}" зараз є на складі в ящику ${inStock.box_name} (${inStock.qty} шт.). Видалення неможливе, поки залишок не буде списано!`);
@@ -1930,13 +1931,11 @@
         if (!confirmDelete) return;
 
         try {
-            // Видаляємо з products
             await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(code)}`, {
                 method: 'DELETE',
                 headers: HEADERS
             });
 
-            // Видаляємо норму з planograms (якщо була)
             await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(code)}`, {
                 method: 'DELETE',
                 headers: HEADERS
