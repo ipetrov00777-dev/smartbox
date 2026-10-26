@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.6.0 - Складський облік (З Керуванням БД)</title>
+    <title>SmartBox v4.6.1 - Складський облік (З фото при створенні)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -80,7 +80,7 @@
         .modal-img { max-width: 90%; max-height: 80%; border-radius: 8px; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
         .modal-close-btn { position: absolute; top: 15px; right: 15px; color: white; font-size: 25px; cursor: pointer; }
 
-        .info-modal-content { background: #1e1e1e; padding: 20px; border-radius: 10px; max-width: 380px; width: 90%; border: 1px solid #444; box-shadow: 0 4px 15px rgba(0,0,0,0.6); color: #fff; }
+        .info-modal-content { background: #1e1e1e; padding: 20px; border-radius: 10px; max-width: 380px; width: 90%; border: 1px solid #444; box-shadow: 0 4px 15px rgba(0,0,0,0.6); color: #fff; max-height: 90vh; overflow-y: auto; }
         .info-modal-content h3 { margin-top: 0; color: #ffc107; font-size: 16px; margin-bottom: 10px; }
         .info-modal-content p { font-size: 14px; line-height: 1.5; color: #ccc; margin-bottom: 12px; }
         .modal-batch-list { background: #121212; padding: 8px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; border: 1px solid #333; }
@@ -114,7 +114,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.6.0 (Оновлено: 26.10.2026)</div>
+        <div class="app-version">SmartBox v4.6.1 (Оновлено: 26.10.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -353,7 +353,7 @@
         </div>
     </div>
 
-    <!-- 10. НОВИЙ РОЗДІЛ: БАЗА ДАНИХ (СПРАВОЧНИК ТОВАРІВ) -->
+    <!-- 10. РОЗДІЛ: БАЗА ДАНИХ (СПРАВОЧНИК ТОВАРІВ) -->
     <div id="dbSection" class="screen">
         <div class="header-bar">
             <h2>🗄 База даних товарів</h2>
@@ -403,7 +403,9 @@
                 <input type="number" id="dbEditShelfCapacity" min="0" style="padding: 8px; text-align: center; font-weight: bold; color: #81c784;">
             </div>
 
-            <button class="global-cart-btn" style="background: #28a745; margin-top: 0;" onclick="saveDbProductChanges()">💾 Зберегти зміни</button>
+            <div style="display: flex; gap: 8px;">
+                <button class="global-cart-btn" style="background: #28a745; margin-top: 0; flex: 2;" onclick="saveDbProductChanges()">💾 Зберегти зміни</button>
+            </div>
         </div>
 
         <div class="card">
@@ -417,11 +419,20 @@
 
 </div>
 
-<!-- МОДАЛКА СТВОРЕННЯ НОВОГО ТОВАРУ -->
+<!-- МОДАЛКА СТВОРЕННЯ НОВОГО ТОВАРУ (З ФОТО) -->
 <div id="addNewProductModal" class="modal-overlay" onclick="closeAddNewProductModal()">
     <div class="info-modal-content" onclick="event.stopPropagation()" style="border-color: #ff9800;">
         <h3 style="color: #ff9800; margin-top: 0;">+ Додати новий товар</h3>
         
+        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px; background: #121212; padding: 8px; border-radius: 6px;">
+            <img id="newProdThumbPreview" src="https://via.placeholder.com/80?text=Photo" style="width: 60px; height: 60px; object-fit: contain; background: #fff; border-radius: 4px;" alt="Префікс фото">
+            <div>
+                <input type="file" id="newProdFileInput" accept="image/*" style="display: none;" onchange="previewNewProductImage(this)">
+                <button class="edit-toggle-btn" style="font-size: 12px;" onclick="document.getElementById('newProdFileInput').click()">📷 Вибрати фото</button>
+                <div style="font-size: 10px; color: #888; margin-top: 4px;">Необов'язково</div>
+            </div>
+        </div>
+
         <div class="form-group">
             <label style="font-size: 12px;">Код товару (product_code) *:</label>
             <input type="text" id="newProdCodeInput" placeholder="напр. PRD-999 або 123456">
@@ -1755,11 +1766,7 @@
                 body: file
             });
 
-            if (!uploadRes.ok) {
-                const errJson = await uploadRes.json().catch(() => ({}));
-                console.error("Supabase Storage Error:", errJson);
-                throw new Error(errJson.message || "Помилка завантаження файлу.");
-            }
+            if (!uploadRes.ok) throw new Error("Помилка завантаження файлу.");
 
             const publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
 
@@ -1877,14 +1884,12 @@
         const newShelfCapacity = parseInt(document.getElementById('dbEditShelfCapacity').value, 10) || 0;
 
         try {
-            // 1. Оновлюємо таблицю products
             await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(code)}`, {
                 method: 'PATCH',
                 headers: HEADERS,
                 body: JSON.stringify({ barcode: newBarcode, product_name: newName })
             });
 
-            // 2. Оновлюємо або створюємо норму полиці в planograms
             const existingPlano = globalPlanograms.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             if (existingPlano) {
                 await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(code)}`, {
@@ -1959,6 +1964,8 @@
         document.getElementById('newProdBarcodeInput').value = '';
         document.getElementById('newProdNameInput').value = '';
         document.getElementById('newProdShelfInput').value = '0';
+        document.getElementById('newProdFileInput').value = '';
+        document.getElementById('newProdThumbPreview').src = 'https://via.placeholder.com/80?text=Photo';
         document.getElementById('addNewProductModal').classList.add('active');
     }
 
@@ -1966,11 +1973,22 @@
         document.getElementById('addNewProductModal').classList.remove('active');
     }
 
+    function previewNewProductImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('newProdThumbPreview').src = e.target.result;
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
     async function submitNewProduct() {
         const code = document.getElementById('newProdCodeInput').value.trim();
         const barcode = document.getElementById('newProdBarcodeInput').value.trim();
         const name = document.getElementById('newProdNameInput').value.trim() || 'Назва не вказана';
         const shelf = parseInt(document.getElementById('newProdShelfInput').value, 10) || 0;
+        const fileInput = document.getElementById('newProdFileInput');
 
         if (!code) {
             alert("Будь ласка, введіть Код товару!");
@@ -1984,16 +2002,43 @@
         }
 
         try {
+            let uploadedPhotoUrl = null;
+
+            // Якщо вибрано файл фото — спочатку завантажуємо його в сховище
+            if (fileInput.files && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${code}_${Date.now()}.${fileExt}`;
+                const filePath = `photos/${fileName}`;
+
+                const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/product-photos/${filePath}`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'content-type': file.type
+                    },
+                    body: file
+                });
+
+                if (uploadRes.ok) {
+                    uploadedPhotoUrl = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
+                }
+            }
+
+            // Створюємо товар в таблиці products
             await fetch(`${SUPABASE_URL}/rest/v1/products`, {
                 method: 'POST',
                 headers: HEADERS,
                 body: JSON.stringify({
                     product_code: code,
                     barcode: barcode || code,
-                    product_name: name
+                    product_name: name,
+                    photo_url: uploadedPhotoUrl
                 })
             });
 
+            // Зберігаємо норму полиці якщо вказана
             if (shelf > 0) {
                 await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
                     method: 'POST',
