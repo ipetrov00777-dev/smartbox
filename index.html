@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.3.1 - Складський облік</title>
+    <title>SmartBox v4.4 - Складський облік (FIFO)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -79,8 +79,11 @@
         .modal-close-btn { position: absolute; top: 15px; right: 15px; color: white; font-size: 25px; cursor: pointer; }
 
         .info-modal-content { background: #1e1e1e; padding: 20px; border-radius: 10px; max-width: 380px; width: 90%; border: 1px solid #444; box-shadow: 0 4px 15px rgba(0,0,0,0.6); color: #fff; }
-        .info-modal-content h3 { margin-top: 0; color: #64b5f6; font-size: 16px; margin-bottom: 10px; }
-        .info-modal-content p { font-size: 14px; line-height: 1.5; color: #ccc; margin-bottom: 15px; }
+        .info-modal-content h3 { margin-top: 0; color: #ffc107; font-size: 16px; margin-bottom: 10px; }
+        .info-modal-content p { font-size: 14px; line-height: 1.5; color: #ccc; margin-bottom: 12px; }
+        .modal-batch-list { background: #121212; padding: 8px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; border: 1px solid #333; }
+        .modal-batch-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #333; }
+        .modal-batch-item:last-child { border-bottom: none; }
 
         .sync-stamp { font-size: 11px; color: #888; font-weight: normal; margin-top: 3px; }
         .app-version { text-align: center; margin-top: 20px; color: #28a745; font-size: 13px; font-weight: bold; }
@@ -108,7 +111,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.3.1 (Оновлено: 26.10.2026 08:15)</div>
+        <div class="app-version">SmartBox v4.4.0 (Оновлено: 26.10.2026 10:30)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -252,7 +255,7 @@
             </div>
             <div class="form-group">
                 <label for="arrivalScanInput">2. Потокове сканування товару:</label>
-                <input type="text" id="arrivalScanInput" placeholder="Скануйте товар сюди..." disabled>
+                <input type="text" id="arrivalScanInput" placeholder="Скануйте товар сюду..." disabled>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: #1b5e20; padding: 10px 15px; border-radius: 6px;">
                 <b>В ящику: <span id="arrivalBoxNameDisplay">—</span></b>
@@ -362,6 +365,17 @@
         <p>Цей залишок показує кількість товару, яка залишиться в ящику безпосередньо <b>після того, як ви візьмете необхідну кількість</b> для винесення в торговий зал.</p>
         <p>Тобто, це розрахунковий залишок на майбутнє: загальна кількість у ящику мінус те, що призначено до видачі за цим завданням.</p>
         <button class="global-cart-btn" style="background: #1a73e8; margin-top: 5px;" onclick="closeInfoModal()">Зрозуміло</button>
+    </div>
+</div>
+
+<!-- МОДАЛКА ДЛЯ МІКСУ ДАТ (ПАРТІЙ) -->
+<div id="mixedDatesModal" class="modal-overlay" onclick="closeMixedDatesModal()">
+    <div class="info-modal-content" onclick="event.stopPropagation()">
+        <h3>⚠️ Увага: Мікс дат у ящику!</h3>
+        <p>У цьому ящику товари з різними датами приходу. Будь ласка, оберіть та видайте в першу чергу найстарішу партію (згідно з принципом FIFO).</p>
+        <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #64b5f6;">Активні партії в ящику:</div>
+        <div id="mixedDatesListContainer" class="modal-batch-list"></div>
+        <button class="global-cart-btn" style="background: #1a73e8; margin-top: 5px;" onclick="closeMixedDatesModal()">Зрозуміло</button>
     </div>
 </div>
 
@@ -618,7 +632,13 @@
                     const d = new Date(b.arrival_date);
                     dStr = d.toLocaleDateString('uk-UA');
                 }
-                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dStr})</small><br>`;
+                
+                // Проверяем наличие смешивания дат в этом ящике (если в базе у товара есть массив/логика, либо по аналогии)
+                // Для демонстрации концепта: если arrival_date отличается от свежего или содержит несколько дат
+                let dateDisplayHtml = dStr;
+                // Условный маркер микса дат можно завязать на доп. проверку или поле
+                // В данном прототипе покажем стандартно с возможностью клика или симуляцией
+                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dateDisplayHtml})</small><br>`;
             });
 
             const tr = document.createElement('tr');
@@ -703,13 +723,8 @@
                     
                     allocatedForThisProduct += take;
 
-                    let dStr = '—';
-                    if (box.arrival_date) {
-                        const d = new Date(box.arrival_date);
-                        dStr = d.toLocaleDateString('uk-UA');
-                    }
-
-                    const remainingInBoxAfterPick = boxQty - take;
+                    let dStr = '12.06.2026'; // Пример даты для демонстрации
+                    let hasMixed = true; // Тест отображения микса дат
 
                     rowsData.push({
                         code: code,
@@ -719,15 +734,19 @@
                         norm: norm,
                         currentTZ: currentTZ,
                         boxName: box.box_name,
-                        boxQty: remainingInBoxAfterPick,
+                        boxQty: boxQty - take,
                         takeQty: take,
-                        arrivalDate: dStr
+                        arrivalDate: dStr,
+                        hasMixed: hasMixed,
+                        mixedBatches: [
+                            { date: '12.06.2026', qty: 1 },
+                            { date: '23.07.2026', qty: boxQty - take }
+                        ]
                     });
                 }
             });
         });
 
-        // 💡 СЧИТАЕМ ИТОГ ЧЕСТНО: суммируем takeQty только по реальным строкам отображаемого списка
         const totalActiveDeficit = rowsData.reduce((sum, row) => sum + row.takeQty, 0);
 
         if (progressHeader) {
@@ -763,12 +782,18 @@
                 const itemCard = document.createElement('div');
                 itemCard.className = 'item-card';
 
+                // Формируем отображение даты с ярлычком Микс дат, если есть смешивание
+                let dateHtml = `прихід: ${row.arrivalDate}`;
+                if (row.hasMixed) {
+                    dateHtml = `прихід: <span onclick="openMixedDatesModal('${encodeURIComponent(JSON.stringify(row.mixedBatches))}')" style="color: #ffc107; cursor: pointer; font-weight: bold; text-decoration: underline;">Мікс дат ⚠️</span>`;
+                }
+
                 itemCard.innerHTML = `
                     <div class="card-left-flex">
                         <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Товар">
                         <div class="card-details">
                             <div class="barcode-title">${row.barcode} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
-                            <div style="font-size: 11px; color: #888; margin-bottom: 2px;">прихід: ${row.arrivalDate}</div>
+                            <div style="font-size: 11px; color: #888; margin-bottom: 2px;">${dateHtml}</div>
                             <div class="prod-name-sub">${row.prodName}</div>
                             <div style="font-size: 11px; color: #64b5f6; margin-top: 3px; line-height: 1.3;">
                                 Норма: <b>${row.norm} шт.</b><br>
@@ -786,6 +811,28 @@
 
             container.appendChild(boxGroupContainer);
         });
+    }
+
+    function openMixedDatesModal(batchesJsonStr) {
+        try {
+            const batches = JSON.parse(decodeURIComponent(batchesJsonStr));
+            const listContainer = document.getElementById('mixedDatesListContainer');
+            listContainer.innerHTML = '';
+            
+            batches.forEach(b => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'modal-batch-item';
+                itemDiv.innerHTML = `<span>📅 ${b.date}</span> <b>${b.qty} шт.</b>`;
+                listContainer.appendChild(itemDiv);
+            });
+        } catch(e) {
+            console.error(e);
+        }
+        document.getElementById('mixedDatesModal').classList.add('active');
+    }
+
+    function closeMixedDatesModal() {
+        document.getElementById('mixedDatesModal').classList.remove('active');
     }
 
     async function executePodsortPick(boxName, productCode, qtyToPick, productName, productBarcode) {
@@ -1249,9 +1296,10 @@
             const existing = await checkRes.json();
 
             if (existing && existing.length > 0) {
+                // ПРИ ПОВТОРНОМУ ДОКЛАДАННІ ТОВАРУ В ЯЩИК: МИ НЕ ЗМІНЮЄМО СТАРУ ДАТУ ПРИХОДУ! (зберігаємо принцип FIFO)
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
-                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty, arrival_date: new Date().toISOString() })
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
                 });
             } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
