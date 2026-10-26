@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.6.1 - Складський облік (З фото при створенні)</title>
+    <title>SmartBox v4.6.2 - Складський облік (З безпечним видаленням)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -114,7 +114,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.6.1 (Оновлено: 26.10.2026)</div>
+        <div class="app-version">SmartBox v4.6.2 (Оновлено: 26.10.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -403,9 +403,8 @@
                 <input type="number" id="dbEditShelfCapacity" min="0" style="padding: 8px; text-align: center; font-weight: bold; color: #81c784;">
             </div>
 
-            <div style="display: flex; gap: 8px;">
-                <button class="global-cart-btn" style="background: #28a745; margin-top: 0; flex: 2;" onclick="saveDbProductChanges()">💾 Зберегти зміни</button>
-            </div>
+            <button class="global-cart-btn" style="background: #28a745; margin-top: 0; margin-bottom: 8px;" onclick="saveDbProductChanges()">💾 Зберегти зміни</button>
+            <button class="global-cart-btn" style="background: #dc3545; margin-top: 0; font-size: 13px;" onclick="deleteDbProduct()">🗑 Видалити товар із бази</button>
         </div>
 
         <div class="card">
@@ -1916,6 +1915,44 @@
         }
     }
 
+    async function deleteDbProduct() {
+        if (!currentDbEditingProduct) return;
+        const code = currentDbEditingProduct.product_code;
+
+        // Захисна перевірка на наявність на складі
+        const inStock = globalStock.find(s => s.product_code?.toLowerCase() === code.toLowerCase() && (parseInt(s.qty, 10) || 0) > 0);
+        if (inStock) {
+            alert(`Увага! Товар "${code}" зараз є на складі в ящику ${inStock.box_name} (${inStock.qty} шт.). Видалення неможливе, поки залишок не буде списано!`);
+            return;
+        }
+
+        const confirmDelete = confirm(`⚠️ Ви дійсно хочете повністю видалити товар "${code}" з бази даних?\nЦю дію неможливо скасувати!`);
+        if (!confirmDelete) return;
+
+        try {
+            // Видаляємо з products
+            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(code)}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+
+            // Видаляємо норму з planograms (якщо була)
+            await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(code)}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+
+            alert("Товар успішно видалено з бази даних!");
+            closeDbEditor();
+            await loadAllData();
+            renderDbProductList();
+
+        } catch (e) {
+            console.error(e);
+            alert("Помилка при видаленні товару.");
+        }
+    }
+
     async function uploadDbProductPhoto(inputElem) {
         if (!inputElem.files || inputElem.files.length === 0 || !currentDbEditingProduct) return;
         const file = inputElem.files[0];
@@ -2004,7 +2041,6 @@
         try {
             let uploadedPhotoUrl = null;
 
-            // Якщо вибрано файл фото — спочатку завантажуємо його в сховище
             if (fileInput.files && fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 const fileExt = file.name.split('.').pop();
@@ -2026,7 +2062,6 @@
                 }
             }
 
-            // Створюємо товар в таблиці products
             await fetch(`${SUPABASE_URL}/rest/v1/products`, {
                 method: 'POST',
                 headers: HEADERS,
@@ -2038,7 +2073,6 @@
                 })
             });
 
-            // Зберігаємо норму полиці якщо вказана
             if (shelf > 0) {
                 await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
                     method: 'POST',
