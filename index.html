@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.2 - Складський облік</title>
+    <title>SmartBox v4.3 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -72,12 +72,15 @@
         .prod-name-sub { font-size: 12px; color: #bbb; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         
         .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; flex-shrink: 0; text-align: right; }
-        .rem-box-badge { font-size: 12px; font-weight: bold; color: #64b5f6; white-space: nowrap; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
         .modal-overlay.active { display: flex; }
         .modal-img { max-width: 90%; max-height: 80%; border-radius: 8px; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
         .modal-close-btn { position: absolute; top: 15px; right: 15px; color: white; font-size: 25px; cursor: pointer; }
+
+        .info-modal-content { background: #1e1e1e; padding: 20px; border-radius: 10px; max-width: 380px; width: 90%; border: 1px solid #444; box-shadow: 0 4px 15px rgba(0,0,0,0.6); color: #fff; }
+        .info-modal-content h3 { margin-top: 0; color: #64b5f6; font-size: 16px; margin-bottom: 10px; }
+        .info-modal-content p { font-size: 14px; line-height: 1.5; color: #ccc; margin-bottom: 15px; }
 
         .sync-stamp { font-size: 11px; color: #888; font-weight: normal; margin-top: 3px; }
         .app-version { text-align: center; margin-top: 20px; color: #28a745; font-size: 13px; font-weight: bold; }
@@ -105,7 +108,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.2.0 (Оновлено: 26.10.2026 02:45)</div>
+        <div class="app-version">SmartBox v4.3.0 (Оновлено: 26.10.2026 03:08)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -346,9 +349,20 @@
 
 </div>
 
+<!-- МОДАЛКА ДЛЯ ПЕРЕГЛЯДУ ФОТО -->
 <div id="imageModal" class="modal-overlay" onclick="closeImageModal()">
     <span class="modal-close-btn">&times;</span>
     <img id="modalImg" class="modal-img" src="" alt="Фото товару">
+</div>
+
+<!-- МОДАЛКА ІНФОРМАЦІЇ ПРО ЗАЛИШОК ЗІ ЗІРЧОЮ (*) -->
+<div id="infoModal" class="modal-overlay" onclick="closeInfoModal()">
+    <div class="info-modal-content" onclick="event.stopPropagation()">
+        <h3>ℹ️ Інформація про залишок в ящику</h3>
+        <p>Цей залишок показує кількість товару, яка залишиться в ящику безпосередньо <b>після того, як ви візьмете необхідну кількість</b> для винесення в торговий зал.</p>
+        <p>Тобто, це розрахунковий залишок на майбутнє: загальна кількість у ящику мінус те, що призначено до видачі за цим завданням.</p>
+        <button class="global-cart-btn" style="background: #1a73e8; margin-top: 5px;" onclick="closeInfoModal()">Зрозуміло</button>
+    </div>
 </div>
 
 <script>
@@ -717,6 +731,8 @@
                         dStr = d.toLocaleDateString('uk-UA');
                     }
 
+                    const remainingInBoxAfterPick = boxQty - take;
+
                     rowsData.push({
                         code: code,
                         prodName: prodName,
@@ -725,7 +741,7 @@
                         norm: norm,
                         currentTZ: currentTZ,
                         boxName: box.box_name,
-                        boxQty: boxQty,
+                        boxQty: remainingInBoxAfterPick,
                         takeQty: take,
                         arrivalDate: dStr
                     });
@@ -776,7 +792,7 @@
                             <div style="font-size: 11px; color: #64b5f6; margin-top: 3px; line-height: 1.3;">
                                 Норма: <b>${row.norm} шт.</b><br>
                                 Зараз в ТЗ: <b>${row.currentTZ} шт.</b><br>
-                                В ящику: <b>${row.boxQty} шт.</b>
+                                <span onclick="openInfoModal()" style="cursor: pointer; text-decoration: underline; color: #90caf9;">В ящику: <b>${row.boxQty} шт.*</b></span>
                             </div>
                         </div>
                     </div>
@@ -1055,10 +1071,12 @@
                         <div class="card-details">
                             <div class="barcode-title">${barcodeDisplay} <span class="qty-highlight">= (${item.qty_reserved} шт.)</span></div>
                             <div class="prod-name-sub">${item.product_name || 'Без назви'}</div>
+                            <div style="font-size: 11px; color: #64b5f6; margin-top: 3px;">
+                                <span onclick="openInfoModal()" style="cursor: pointer; text-decoration: underline; color: #90caf9;">В ящику: <b>${remainingAfterPick} шт.*</b></span>
+                            </div>
                         </div>
                     </div>
                     <div class="card-right-action">
-                        <div class="rem-box-badge" title="Залишок у ящику">📦 ${remainingAfterPick}</div>
                         ${actionBtnHtml}
                     </div>
                 `;
@@ -1156,6 +1174,14 @@
 
     function closeImageModal() {
         document.getElementById('imageModal').classList.remove('active');
+    }
+
+    function openInfoModal() {
+        document.getElementById('infoModal').classList.add('active');
+    }
+
+    function closeInfoModal() {
+        document.getElementById('infoModal').classList.remove('active');
     }
 
     async function loadHistory() {
