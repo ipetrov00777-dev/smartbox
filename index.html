@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.4.1 - Складський облік (FIFO)</title>
+    <title>SmartBox v4.5 - Складський облік (FIFO з партіями)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -111,7 +111,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.4.1 (Оновлено: 26.10.2026 10:42)</div>
+        <div class="app-version">SmartBox v4.5.0 (FIFO з таблицею партій)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -395,6 +395,7 @@
     let activeOrderId = null;
     let dbCartItems = [];
     let globalStock = [];
+    let globalBatches = []; // Массив партий из таблицы box_batches
     let globalProducts = [];
     let globalPlanograms = [];
     let googleStockData = [];
@@ -507,8 +508,9 @@
 
     async function loadAllData() {
         try {
-            const [stockRes, prodRes, rawProductsRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
+            const [stockRes, batchesRes, prodRes, rawProductsRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
                 fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/box_batches?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/products?select=product_code,photo_url,barcode`, { headers: HEADERS }),
                 activeOrderId ? fetch(`${SUPABASE_URL}/rest/v1/order_items?order_id=eq.${activeOrderId}&select=*`, { headers: HEADERS }) : Promise.resolve({ ok: false }),
@@ -518,6 +520,7 @@
             ]);
             
             if (stockRes.ok) globalStock = await stockRes.json();
+            if (batchesRes.ok) globalBatches = await batchesRes.json();
             
             if (prodRes.ok) {
                 globalProducts = await prodRes.json();
@@ -627,12 +630,27 @@
 
             let boxesHtml = '';
             items.forEach(b => {
-                let dStr = '—';
-                if (b.arrival_date) {
-                    const d = new Date(b.arrival_date);
-                    dStr = d.toLocaleDateString('uk-UA');
+                // Ищем партии для этого ящика и товара в таблице box_batches
+                const boxBatches = globalBatches.filter(bt => bt.box_name === b.box_name && bt.product_code.toLowerCase() === code.toLowerCase());
+                boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
+
+                let dateDisplayStr = '—';
+                if (boxBatches.length > 0) {
+                    const oldest = new Date(boxBatches[0].arrival_date).toLocaleDateString('uk-UA');
+                    if (boxBatches.length > 1) {
+                        const formattedBatches = boxBatches.map(bt => ({
+                            date: new Date(bt.arrival_date).toLocaleDateString('uk-UA'),
+                            qty: bt.qty
+                        }));
+                        dateDisplayStr = `<span onclick="openMixedDatesModal('${encodeURIComponent(JSON.stringify(formattedBatches))}')" style="color: #ffc107; cursor: pointer; font-weight: bold; text-decoration: underline;">Мікс дат ⚠️</span>`;
+                    } else {
+                        dateDisplayStr = oldest;
+                    }
+                } else if (b.arrival_date) {
+                    dateDisplayStr = new Date(b.arrival_date).toLocaleDateString('uk-UA');
                 }
-                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dStr})</small><br>`;
+
+                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dateDisplayStr})</small><br>`;
             });
 
             const tr = document.createElement('tr');
@@ -717,20 +735,23 @@
                     
                     allocatedForThisProduct += take;
 
-                    let dStr = '—';
-                    if (box.arrival_date) {
-                        const d = new Date(box.arrival_date);
-                        dStr = d.toLocaleDateString('uk-UA');
-                    }
+                    // Проверяем партии из box_batches
+                    const boxBatches = globalBatches.filter(bt => bt.box_name === box.box_name && bt.product_code.toLowerCase() === code.toLowerCase());
+                    boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
 
-                    // Реальная проверка смешивания (если в записи ящика зафиксировано несколько дат через разделитель или признак)
+                    let dStr = box.arrival_date ? new Date(box.arrival_date).toLocaleDateString('uk-UA') : '—';
                     let hasMixed = false;
-                    let batches = [{ date: dStr, qty: boxQty }];
-                    
-                    if (box.arrival_date && box.arrival_date.includes('|')) {
-                        hasMixed = true;
-                        // Парсим реальные партии из строки базы
-                        // ...
+                    let formattedBatches = [];
+
+                    if (boxBatches.length > 0) {
+                        dStr = new Date(boxBatches[0].arrival_date).toLocaleDateString('uk-UA');
+                        if (boxBatches.length > 1) {
+                            hasMixed = true;
+                            formattedBatches = boxBatches.map(bt => ({
+                                date: new Date(bt.arrival_date).toLocaleDateString('uk-UA'),
+                                qty: bt.qty
+                            }));
+                        }
                     }
 
                     rowsData.push({
@@ -745,7 +766,7 @@
                         takeQty: take,
                         arrivalDate: dStr,
                         hasMixed: hasMixed,
-                        mixedBatches: batches
+                        mixedBatches: formattedBatches
                     });
                 }
             });
@@ -843,18 +864,38 @@
         if (!confirm(confirmMsg)) return;
 
         try {
+            // 1. Списываем по принципу FIFO из таблицы box_batches (начиная с самых старых)
+            const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
+            boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+
+            let remainingToTake = qtyToPick;
+            for (const batch of boxBatches) {
+                if (remainingToTake <= 0) break;
+                const takeFromBatch = Math.min(batch.qty, remainingToTake);
+                const newBatchQty = batch.qty - takeFromBatch;
+                remainingToTake -= takeFromBatch;
+
+                if (newBatchQty === 0) {
+                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, { method: 'DELETE', headers: HEADERS });
+                } else {
+                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, {
+                        method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newBatchQty })
+                    });
+                }
+            }
+
+            // 2. Обновляем общий остаток в основной таблице inventory_boxes
             const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
             const boxData = await resBox.json();
-            if (!boxData || boxData.length === 0) { alert("Помилка: ящик не знайдено!"); return; }
-
-            const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
-
-            if (newQty === 0) {
-                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, { method: 'DELETE', headers: HEADERS });
-            } else {
-                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
-                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
-                });
+            if (boxData && boxData.length > 0) {
+                const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
+                if (newQty === 0) {
+                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, { method: 'DELETE', headers: HEADERS });
+                } else {
+                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                        method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
+                    });
+                }
             }
 
             await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
@@ -930,8 +971,23 @@
                 stockHtml = `${item.originalQty} шт. / <span style="color: #ff6b6b; font-weight: bold;">${remainder}</span>`;
             }
 
+            // Проверяем партии для экрана информации
+            const boxBatches = globalBatches.filter(bt => bt.box_name === item.box_name && bt.product_code.toLowerCase() === currentProductCode.toLowerCase());
+            boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+
             let arrivalDateFormatted = '—';
-            if (item.arrival_date) {
+            if (boxBatches.length > 0) {
+                const oldest = new Date(boxBatches[0].arrival_date).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+                if (boxBatches.length > 1) {
+                    const formattedBatches = boxBatches.map(bt => ({
+                        date: new Date(bt.arrival_date).toLocaleDateString('uk-UA'),
+                        qty: bt.qty
+                    }));
+                    arrivalDateFormatted = `<span onclick="openMixedDatesModal('${encodeURIComponent(JSON.stringify(formattedBatches))}')" style="color: #ffc107; cursor: pointer; font-weight: bold; text-decoration: underline;">Мікс дат ⚠️</span>`;
+                } else {
+                    arrivalDateFormatted = oldest;
+                }
+            } else if (item.arrival_date) {
                 const d = new Date(item.arrival_date);
                 arrivalDateFormatted = d.toLocaleDateString('uk-UA') + ' ' + d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
             }
@@ -1170,18 +1226,38 @@
         if (!confirm(confirmMsg)) return;
 
         try {
+            // 1. Списываем по FIFO из таблицы box_batches
+            const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
+            boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+
+            let remainingToTake = qtyToPick;
+            for (const batch of boxBatches) {
+                if (remainingToTake <= 0) break;
+                const takeFromBatch = Math.min(batch.qty, remainingToTake);
+                const newBatchQty = batch.qty - takeFromBatch;
+                remainingToTake -= takeFromBatch;
+
+                if (newBatchQty === 0) {
+                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, { method: 'DELETE', headers: HEADERS });
+                } else {
+                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, {
+                        method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newBatchQty })
+                    });
+                }
+            }
+
+            // 2. Обновляем общий остаток в inventory_boxes
             const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
             const boxData = await resBox.json();
-            if (!boxData || boxData.length === 0) { alert("Помилка: ящик не знайдено!"); return; }
-
-            const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
-
-            if (newQty === 0) {
-                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, { method: 'DELETE', headers: HEADERS });
-            } else {
-                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
-                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
-                });
+            if (boxData && boxData.length > 0) {
+                const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
+                if (newQty === 0) {
+                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, { method: 'DELETE', headers: HEADERS });
+                } else {
+                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`, {
+                        method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
+                    });
+                }
             }
 
             const itemObj = dbCartItems.find(i => i.id === itemId);
@@ -1295,19 +1371,62 @@
         }
 
         try {
+            const nowIso = new Date().toISOString();
+
+            // 1. Обновляем или создаем запись в основной таблице inventory_boxes
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existing = await checkRes.json();
 
+            let originalArrivalDate = nowIso;
+
             if (existing && existing.length > 0) {
-                // ПРИ ПОВТОРНОМУ ДОКЛАДАННІ: ЗБЕРІГАЄМО СТАРУ ДАТУ ПРИХОДУ (ПРИНЦИП FIFO)
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
+                originalArrivalDate = existing[0].arrival_date || nowIso;
+
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
                     method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
                 });
             } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
-                    method: 'POST', headers: HEADERS, body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: new Date().toISOString() })
+                    method: 'POST', headers: HEADERS, 
+                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso })
                 });
+            }
+
+            // 2. Управляем партиями в таблице box_batches
+            // Проверяем, есть ли уже партии для этого ящика и товара
+            const batchesRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
+            const boxBatches = await batchesRes.json();
+
+            if (!boxBatches || boxBatches.length === 0) {
+                // Если партий еще не было, создаем первую партию с датой первого прихода
+                await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
+                    method: 'POST', headers: HEADERS,
+                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: originalArrivalDate })
+                });
+            } else {
+                // Партии уже есть. Проверяем, есть ли сегодняшняя партия (или добавляем в самую свежую/новую)
+                // По правилу: если докладываем через пару дней, создаем новую партию с текущей датой
+                // Для простоты: если последняя созданная партия была сегодня, увеличиваем её qty, иначе создаем новую строку с текущей датой
+                boxBatches.sort((a, b) => new Date(b.arrival_date || 0) - new Date(a.arrival_date || 0));
+                const latestBatch = boxBatches[0];
+                
+                const latestDate = new Date(latestBatch.arrival_date).toDateString();
+                const currentDate = new Date().toDateString();
+
+                if (latestDate === currentDate) {
+                    // Докладываем в сегодняшнюю партию
+                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${latestBatch.id}`, {
+                        method: 'PATCH', headers: HEADERS,
+                        body: JSON.stringify({ qty: latestBatch.qty + 1 })
+                    });
+                } else {
+                    // Это приход в другой день — создаем новую отдельную партию (микс дат)
+                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
+                        method: 'POST', headers: HEADERS,
+                        body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso })
+                    });
+                }
             }
 
             sessionArrivalItems.unshift({ scanned_code: scannedCode, box_name: currentArrivalBox, product_code: finalProductCode, product_name: finalProductName, time: new Date().toLocaleTimeString('uk-UA') });
