@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.5.4 - Складський облік (FIFO з розумним приходом)</title>
+    <title>SmartBox v4.5.6 - Складський облік (FIFO з надійним приходом)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -111,7 +111,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.5.4 (Оновлено: 26.10.2026 12:30)</div>
+        <div class="app-version">SmartBox v4.5.6 (Оновлено: 26.10.2026 12:55)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -1385,8 +1385,11 @@
         }
 
         try {
-            const todayDateStr = new Date().toISOString().split('T')[0];
-            const nowIso = new Date().toISOString();
+            const todayObj = new Date();
+            const todayYear = todayObj.getFullYear();
+            const todayMonth = todayObj.getMonth();
+            const todayDay = todayObj.getDate();
+            const nowIso = todayObj.toISOString();
 
             // 1. Обновляем общую сумму в inventory_boxes
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
@@ -1404,11 +1407,17 @@
                 });
             }
 
-            // 2. УМНЫЙ УЧЕТ ПАРТИЙ: суммируем в сегодняшнюю партию, если она уже есть
+            // 2. УМНЫЙ УЧЕТ ПАРТИЙ: ищем партию по календарной дате (без учета времени), чтобы суммировать все сканирования за сегодня
             const batchesRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existingBatches = await batchesRes.json();
 
-            const todayBatch = existingBatches.find(b => b.arrival_date && b.arrival_date.startsWith(todayDateStr));
+            const todayBatch = existingBatches.find(b => {
+                if (!b.arrival_date) return false;
+                const bDate = new Date(b.arrival_date);
+                return bDate.getFullYear() === todayYear && 
+                       bDate.getMonth() === todayMonth && 
+                       bDate.getDate() === todayDay;
+            });
 
             if (todayBatch) {
                 const updatedBatchQty = (parseInt(todayBatch.qty, 10) || 0) + 1;
