@@ -105,7 +105,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.1.4 (Оновлено: 26.10.2026 01:58)</div>
+        <div class="app-version">SmartBox v4.1.6 (Оновлено: 26.10.2026 02:11)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -161,17 +161,16 @@
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         <div class="card">
-            <p><small style="color: #aaa;">Повний список товарів у ящиках з метками остатков.</small></p>
+            <p><small style="color: #aaa;">Повний список товарів у ящиках.</small></p>
             <table>
                 <thead>
                     <tr>
-                        <th>Код / Товар</th>
-                        <th id="whBoxesHeader">Ящики (К-сть / Дата)</th>
-                        <th id="whMetricsHeader">Метка остатков</th>
+                        <th style="width: 55%;">Товар, назва та мітка залишків</th>
+                        <th id="whBoxesHeader" style="width: 45%;">Ящики (К-сть / Дата)</th>
                     </tr>
                 </thead>
                 <tbody id="warehouseTableBody">
-                    <tr><td colspan="3" style="text-align: center; color: #777;">Завантаження...</td></tr>
+                    <tr><td colspan="2" style="text-align: center; color: #777;">Завантаження...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -546,21 +545,12 @@
     function renderWarehouseScreen() {
         const tbody = document.getElementById('warehouseTableBody');
         const headerTh = document.getElementById('whBoxesHeader');
-        const metricsTh = document.getElementById('whMetricsHeader');
         if (!tbody) return;
         tbody.innerHTML = '';
 
         const grandTotalBoxesQty = globalStock.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
         if (headerTh) {
-            headerTh.innerHTML = `Ящики (К-сть / Дата)<br><small style="color: #64b5f6; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
-        }
-
-        let grandTotalZagQty = 0;
-        googleStockData.forEach(g => {
-            grandTotalZagQty += (parseInt(g.stock, 10) || 0);
-        });
-        if (metricsTh) {
-            metricsTh.innerHTML = `Метка остатков<br><small style="color: #64b5f6; font-weight: normal;">Всього Заг: <b>${grandTotalZagQty} шт.</b></small>`;
+            headerTh.innerHTML = `Ящики та залишки<br><small style="color: #64b5f6; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
         }
 
         const groupedWarehouse = {};
@@ -572,7 +562,7 @@
 
         const codes = Object.keys(groupedWarehouse);
         if (codes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">На складі немає товарів у ящиках</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #777;">На складі немає товарів у ящиках</td></tr>';
             return;
         }
 
@@ -623,15 +613,20 @@
             tr.innerHTML = `
                 <td>
                     <div style="display: flex; gap: 8px; align-items: flex-start;">
-                        <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото" style="width: 40px; height: 40px; flex-shrink: 0;">
+                        <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото" style="width: 50px; height: 50px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid #444; cursor: pointer; flex-shrink: 0;">
                         <div style="min-width: 0; flex: 1;">
-                            <b style="color: #64b5f6;">${code}</b> <span style="font-size: 11px; color: #888;">(Шк: ${barcodeVal})</span><br>
-                            <small style="color:#aaa; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${prodName}</small>
+                            <div style="font-size: 13px; font-weight: bold; color: #64b5f6;">${code}</div>
+                            <div style="font-size: 11px; color: #28a745; font-weight: bold;">Шк: ${barcodeVal}</div>
+                            <div style="font-size: 12px; color: #fff; margin: 3px 0; line-height: 1.3;">${prodName}</div>
+                            <div style="font-size: 11px; color: #64b5f6; background: #1a2733; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 2px;">
+                                Заг: <b>${zagStr}</b> | ТЗ: <b>${tzStr}</b> | Скл: <b>${sklStr}</b> ${normStr}
+                            </div>
                         </div>
                     </div>
                 </td>
-                <td>${boxesHtml}</td>
-                <td><b>Заг.-${zagStr} ТЗ -${tzStr} Скл.-${sklStr} ${normStr}</b></td>
+                <td>
+                    <div style="font-size: 12px; line-height: 1.4;">${boxesHtml}</div>
+                </td>
             `;
             tbody.appendChild(tr);
         });
@@ -1475,7 +1470,7 @@
                 throw new Error(errJson.message || "Помилка завантаження файлу в сховище Supabase Storage.");
             }
 
-            const publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
+            val publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
 
             const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentEditingProduct.product_code)}`, {
                 method: 'PATCH',
