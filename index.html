@@ -105,7 +105,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.1.6 (Оновлено: 26.10.2026 02:11)</div>
+        <div class="app-version">SmartBox v4.1.7 (Оновлено: 26.10.2026 02:16)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -1470,7 +1470,7 @@
                 throw new Error(errJson.message || "Помилка завантаження файлу в сховище Supabase Storage.");
             }
 
-            val publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
+            const publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
 
             const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentEditingProduct.product_code)}`, {
                 method: 'PATCH',
