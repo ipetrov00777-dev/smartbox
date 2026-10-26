@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.5 - Складський облік (FIFO з партіями)</title>
+    <title>SmartBox v4.5.1 - Складський облік (FIFO з партіями)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -111,7 +111,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.5.0 (FIFO з таблицею партій)</div>
+        <div class="app-version">SmartBox v4.5.1 (Оновлено: 26.10.2026 11:15)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -395,7 +395,7 @@
     let activeOrderId = null;
     let dbCartItems = [];
     let globalStock = [];
-    let globalBatches = []; // Массив партий из таблицы box_batches
+    let globalBatches = [];
     let globalProducts = [];
     let globalPlanograms = [];
     let googleStockData = [];
@@ -630,7 +630,6 @@
 
             let boxesHtml = '';
             items.forEach(b => {
-                // Ищем партии для этого ящика и товара в таблице box_batches
                 const boxBatches = globalBatches.filter(bt => bt.box_name === b.box_name && bt.product_code.toLowerCase() === code.toLowerCase());
                 boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
 
@@ -735,7 +734,6 @@
                     
                     allocatedForThisProduct += take;
 
-                    // Проверяем партии из box_batches
                     const boxBatches = globalBatches.filter(bt => bt.box_name === box.box_name && bt.product_code.toLowerCase() === code.toLowerCase());
                     boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
 
@@ -864,7 +862,6 @@
         if (!confirm(confirmMsg)) return;
 
         try {
-            // 1. Списываем по принципу FIFO из таблицы box_batches (начиная с самых старых)
             const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
             boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
@@ -884,7 +881,6 @@
                 }
             }
 
-            // 2. Обновляем общий остаток в основной таблице inventory_boxes
             const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
             const boxData = await resBox.json();
             if (boxData && boxData.length > 0) {
@@ -971,7 +967,6 @@
                 stockHtml = `${item.originalQty} шт. / <span style="color: #ff6b6b; font-weight: bold;">${remainder}</span>`;
             }
 
-            // Проверяем партии для экрана информации
             const boxBatches = globalBatches.filter(bt => bt.box_name === item.box_name && bt.product_code.toLowerCase() === currentProductCode.toLowerCase());
             boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
@@ -1226,7 +1221,6 @@
         if (!confirm(confirmMsg)) return;
 
         try {
-            // 1. Списываем по FIFO из таблицы box_batches
             const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
             boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
@@ -1246,7 +1240,6 @@
                 }
             }
 
-            // 2. Обновляем общий остаток в inventory_boxes
             const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
             const boxData = await resBox.json();
             if (boxData && boxData.length > 0) {
@@ -1373,16 +1366,11 @@
         try {
             const nowIso = new Date().toISOString();
 
-            // 1. Обновляем или создаем запись в основной таблице inventory_boxes
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existing = await checkRes.json();
 
-            let originalArrivalDate = nowIso;
-
             if (existing && existing.length > 0) {
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
-                originalArrivalDate = existing[0].arrival_date || nowIso;
-
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
                     method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
                 });
@@ -1393,41 +1381,11 @@
                 });
             }
 
-            // 2. Управляем партиями в таблице box_batches
-            // Проверяем, есть ли уже партии для этого ящика и товара
-            const batchesRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
-            const boxBatches = await batchesRes.json();
-
-            if (!boxBatches || boxBatches.length === 0) {
-                // Если партий еще не было, создаем первую партию с датой первого прихода
-                await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
-                    method: 'POST', headers: HEADERS,
-                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: originalArrivalDate })
-                });
-            } else {
-                // Партии уже есть. Проверяем, есть ли сегодняшняя партия (или добавляем в самую свежую/новую)
-                // По правилу: если докладываем через пару дней, создаем новую партию с текущей датой
-                // Для простоты: если последняя созданная партия была сегодня, увеличиваем её qty, иначе создаем новую строку с текущей датой
-                boxBatches.sort((a, b) => new Date(b.arrival_date || 0) - new Date(a.arrival_date || 0));
-                const latestBatch = boxBatches[0];
-                
-                const latestDate = new Date(latestBatch.arrival_date).toDateString();
-                const currentDate = new Date().toDateString();
-
-                if (latestDate === currentDate) {
-                    // Докладываем в сегодняшнюю партию
-                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${latestBatch.id}`, {
-                        method: 'PATCH', headers: HEADERS,
-                        body: JSON.stringify({ qty: latestBatch.qty + 1 })
-                    });
-                } else {
-                    // Это приход в другой день — создаем новую отдельную партию (микс дат)
-                    await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
-                        method: 'POST', headers: HEADERS,
-                        body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso })
-                    });
-                }
-            }
+            // Создаем новую партию в таблице box_batches при каждом поступлении
+            await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
+                method: 'POST', headers: HEADERS,
+                body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso })
+            });
 
             sessionArrivalItems.unshift({ scanned_code: scannedCode, box_name: currentArrivalBox, product_code: finalProductCode, product_name: finalProductName, time: new Date().toLocaleTimeString('uk-UA') });
             renderArrivalTable();
