@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.5.6 - Складський облік (FIFO з надійним приходом)</title>
+    <title>SmartBox v4.6.0 - Складський облік (З Керуванням БД)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -19,6 +19,8 @@
         .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
         .menu-btn { background: #1e1e1e; border: 2px solid #1a73e8; color: #1a73e8; padding: 15px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: all 0.2s; position: relative; }
         .menu-btn:hover { background: #1a73e8; color: #fff; }
+        .menu-btn.db-btn { border-color: #ff9800; color: #ff9800; }
+        .menu-btn.db-btn:hover { background: #ff9800; color: #000; }
         .menu-btn.full-width { grid-column: span 2; background: #28a745; color: #fff; border-color: #28a745; }
         .menu-btn.full-width:hover { background: #218838; }
         
@@ -107,11 +109,12 @@
             <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
             <button class="menu-btn" onclick="openSection('historySection')">📜 Історія</button>
             <button class="menu-btn" onclick="openSection('arrivalSection')">📥 Приход</button>
+            <button class="menu-btn db-btn" onclick="openSection('dbSection')">🗄 База даних</button>
             <button class="menu-btn full-width" onclick="openSection('cartSection')">
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.5.6 (Оновлено: 26.10.2026 12:55)</div>
+        <div class="app-version">SmartBox v4.6.0 (Оновлено: 26.10.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -350,6 +353,97 @@
         </div>
     </div>
 
+    <!-- 10. НОВИЙ РОЗДІЛ: БАЗА ДАНИХ (СПРАВОЧНИК ТОВАРІВ) -->
+    <div id="dbSection" class="screen">
+        <div class="header-bar">
+            <h2>🗄 База даних товарів</h2>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+
+        <div class="card">
+            <button class="global-cart-btn" style="background: #ff9800; color: #000; margin-top: 0; margin-bottom: 10px;" onclick="openAddNewProductModal()">+ Додати новий товар</button>
+            <div class="form-group" style="margin-bottom: 0;">
+                <input type="text" id="dbSearchInput" placeholder="🔍 Пошук по коду, штрихкоду чи назві..." oninput="renderDbProductList()">
+            </div>
+        </div>
+
+        <!-- КАРТОЧКА РЕДАКТУВАННЯ ТОВАРУ З БД -->
+        <div id="dbEditorCard" class="card" style="display: none; border: 2px solid #ff9800; background: #1a1a1a;">
+            <div class="cart-header-flex">
+                <h3 style="color: #ff9800;">✎ Редагування картки товару</h3>
+                <button class="back-btn" onclick="closeDbEditor()">✕ Закрити</button>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 10px; align-items: flex-start;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <img id="dbEditThumb" src="" style="width: 85px; height: 85px; object-fit: contain; background: #ffffff; border-radius: 6px; border: 1px solid #555; cursor: pointer;" onclick="openImageModal(this.src)" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+                    <input type="file" id="dbProductImageFile" accept="image/*" style="display: none;" onchange="uploadDbProductPhoto(this)">
+                    <button class="edit-toggle-btn" style="font-size: 11px; padding: 4px 6px;" onclick="document.getElementById('dbProductImageFile').click()">📷 Змінити фото</button>
+                </div>
+
+                <div style="flex: 1; min-width: 0;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 11px; color: #aaa;">Код товару (незмінний):</label>
+                        <input type="text" id="dbEditCode" disabled style="background: #222; color: #64b5f6; font-weight: bold; padding: 6px;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 11px; color: #aaa;">Штрихкод:</label>
+                        <input type="text" id="dbEditBarcode" style="padding: 6px;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 8px; margin-bottom: 8px;">
+                <label style="font-size: 11px; color: #aaa;">Назва товару:</label>
+                <input type="text" id="dbEditName" style="padding: 8px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label style="font-size: 11px; color: #aaa;">Норма на полке (шт.):</label>
+                <input type="number" id="dbEditShelfCapacity" min="0" style="padding: 8px; text-align: center; font-weight: bold; color: #81c784;">
+            </div>
+
+            <button class="global-cart-btn" style="background: #28a745; margin-top: 0;" onclick="saveDbProductChanges()">💾 Зберегти зміни</button>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="font-size: 14px; margin: 0;">Справочник товарів</h3>
+                <span id="dbCounterText" style="font-size: 11px; color: #888;">Всього: 0</span>
+            </div>
+            <div id="dbCatalogContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- МОДАЛКА СТВОРЕННЯ НОВОГО ТОВАРУ -->
+<div id="addNewProductModal" class="modal-overlay" onclick="closeAddNewProductModal()">
+    <div class="info-modal-content" onclick="event.stopPropagation()" style="border-color: #ff9800;">
+        <h3 style="color: #ff9800; margin-top: 0;">+ Додати новий товар</h3>
+        
+        <div class="form-group">
+            <label style="font-size: 12px;">Код товару (product_code) *:</label>
+            <input type="text" id="newProdCodeInput" placeholder="напр. PRD-999 або 123456">
+        </div>
+        <div class="form-group">
+            <label style="font-size: 12px;">Штрихкод (barcode):</label>
+            <input type="text" id="newProdBarcodeInput" placeholder="напр. 482000000000">
+        </div>
+        <div class="form-group">
+            <label style="font-size: 12px;">Назва товару:</label>
+            <input type="text" id="newProdNameInput" placeholder="Повна назва товару">
+        </div>
+        <div class="form-group">
+            <label style="font-size: 12px;">Норма на полке (шт.):</label>
+            <input type="number" id="newProdShelfInput" min="0" value="0" style="text-align: center;">
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 15px;">
+            <button class="back-btn" style="flex: 1;" onclick="closeAddNewProductModal()">Скасувати</button>
+            <button class="global-cart-btn" style="flex: 2; margin-top: 0; background: #ff9800; color: #000;" onclick="submitNewProduct()">Створити</button>
+        </div>
+    </div>
 </div>
 
 <!-- МОДАЛКА ДЛЯ ПЕРЕГЛЯДУ ФОТО -->
@@ -411,6 +505,7 @@
 
     let photoOnlyWithoutPhoto = localStorage.getItem('photoOnlyWithoutPhoto') === 'true';
     let currentEditingProduct = null;
+    let currentDbEditingProduct = null;
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -480,6 +575,11 @@
             updatePhotoFilterButtonUI();
             setTimeout(() => document.getElementById('photoScanInput')?.focus(), 100);
         }
+        if (screenId === 'dbSection') {
+            loadAllData().then(() => renderDbProductList());
+            document.getElementById('dbEditorCard').style.display = 'none';
+            document.getElementById('dbSearchInput').value = '';
+        }
     }
 
     function goToMenu() { 
@@ -512,7 +612,7 @@
                 fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/box_batches?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: HEADERS }),
-                fetch(`${SUPABASE_URL}/rest/v1/products?select=product_code,photo_url,barcode`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/products?select=product_code,photo_url,barcode,product_name`, { headers: HEADERS }),
                 activeOrderId ? fetch(`${SUPABASE_URL}/rest/v1/order_items?order_id=eq.${activeOrderId}&select=*`, { headers: HEADERS }) : Promise.resolve({ ok: false }),
                 fetch(`${SUPABASE_URL}/rest/v1/planograms?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/google_stock?select=*`, { headers: HEADERS }),
@@ -531,7 +631,8 @@
                         if (p.product_code) {
                             extraMap[p.product_code.toLowerCase()] = {
                                 photo_url: p.photo_url || null,
-                                barcode: p.barcode || null
+                                barcode: p.barcode || null,
+                                product_name: p.product_name || null
                             };
                         }
                     });
@@ -540,6 +641,7 @@
                         const extra = extraMap[code] || {};
                         return {
                             ...p,
+                            product_name: p.product_name || extra.product_name || 'Назва не вказана',
                             photo_url: p.photo_url || extra.photo_url || null,
                             barcode: p.barcode || extra.barcode || null
                         };
@@ -1407,7 +1509,7 @@
                 });
             }
 
-            // 2. УМНЫЙ УЧЕТ ПАРТИЙ: ищем партию по календарной дате (без учета времени), чтобы суммировать все сканирования за сегодня
+            // 2. УМНЫЙ УЧЕТ ПАРТИЙ: ищем партию по календарной дате
             const batchesRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existingBatches = await batchesRes.json();
 
@@ -1656,29 +1758,21 @@
             if (!uploadRes.ok) {
                 const errJson = await uploadRes.json().catch(() => ({}));
                 console.error("Supabase Storage Error:", errJson);
-                throw new Error(errJson.message || "Помилка завантаження файлу в сховище Supabase Storage.");
+                throw new Error(errJson.message || "Помилка завантаження файлу.");
             }
 
             const publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
 
             const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentEditingProduct.product_code)}`, {
                 method: 'PATCH',
-                headers: {
-                    ...HEADERS,
-                    'Prefer': 'return=minimal'
-                },
+                headers: { ...HEADERS, 'Prefer': 'return=minimal' },
                 body: JSON.stringify({ photo_url: publicUrlRes })
             });
 
-            if (!updateRes.ok) {
-                const errText = await updateRes.text();
-                console.error("DB Update Error:", errText);
-                throw new Error("Помилка оновлення бази даних.");
-            }
+            if (!updateRes.ok) throw new Error("Помилка оновлення бази даних.");
 
             alert("Фото успішно оновлено!");
             inputElem.value = '';
-            
             await loadAllData();
             
             const updatedProd = globalProducts.find(p => p.product_code === currentEditingProduct.product_code);
@@ -1688,6 +1782,234 @@
         } catch (e) {
             console.error(e);
             alert("Помилка: " + e.message);
+        }
+    }
+
+    // --- ЛОГІКА ДЛЯ НОВОГО РОЗДІЛУ "БАЗА ДАНИХ" ---
+
+    function renderDbProductList() {
+        const container = document.getElementById('dbCatalogContainer');
+        const counter = document.getElementById('dbCounterText');
+        const searchInput = document.getElementById('dbSearchInput');
+        if (!container) return;
+
+        container.innerHTML = '';
+        const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+        let list = [...globalProducts];
+
+        if (searchVal) {
+            list = list.filter(p => 
+                (p.product_code && p.product_code.toLowerCase().includes(searchVal)) ||
+                (p.barcode && p.barcode.toLowerCase().includes(searchVal)) ||
+                (p.product_name && p.product_name.toLowerCase().includes(searchVal))
+            );
+        }
+
+        if (counter) counter.innerText = `Знайдено: ${list.length}`;
+
+        if (list.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 15px;">Товарів не знайдено</div>';
+            return;
+        }
+
+        list.forEach(prod => {
+            const hasPhoto = (prod.photo_url && prod.photo_url.trim() !== '' && prod.photo_url !== NO_IMAGE_PLACEHOLDER);
+            const thumbUrl = hasPhoto ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+            
+            const plano = globalPlanograms.find(p => p.product_code?.toLowerCase() === prod.product_code?.toLowerCase());
+            const shelfCapacity = plano ? (plano.shelf_capacity || 0) : 0;
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'item-card';
+
+            itemDiv.innerHTML = `
+                <div class="card-left-flex" style="cursor: pointer;" onclick="selectDbProductForEdit('${prod.product_code}')">
+                    <img src="${thumbUrl}" class="product-thumb" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
+                    <div class="card-details">
+                        <div class="barcode-title" style="color: #64b5f6;">${prod.product_code}</div>
+                        <div class="prod-name-sub">${prod.product_name || 'Без назви'}</div>
+                        <div style="font-size: 11px; color: #28a745; font-weight: bold;">Шк: ${prod.barcode || '—'}</div>
+                        <div style="font-size: 11px; color: #81c784;">Норма полки: <b>${shelfCapacity} шт.</b></div>
+                    </div>
+                </div>
+                <div class="card-right-action">
+                    <button class="edit-toggle-btn" style="border-color: #ff9800; color: #ff9800;" onclick="selectDbProductForEdit('${prod.product_code}')">✎ Редагувати</button>
+                </div>
+            `;
+            container.appendChild(itemDiv);
+        });
+    }
+
+    function selectDbProductForEdit(productCode) {
+        const prod = globalProducts.find(p => p.product_code?.toLowerCase() === productCode.toLowerCase());
+        if (!prod) return;
+
+        currentDbEditingProduct = prod;
+
+        const editorCard = document.getElementById('dbEditorCard');
+        editorCard.style.display = 'block';
+
+        document.getElementById('dbEditCode').value = prod.product_code;
+        document.getElementById('dbEditBarcode').value = prod.barcode || '';
+        document.getElementById('dbEditName').value = prod.product_name || '';
+
+        const plano = globalPlanograms.find(p => p.product_code?.toLowerCase() === prod.product_code?.toLowerCase());
+        document.getElementById('dbEditShelfCapacity').value = plano ? (plano.shelf_capacity || 0) : 0;
+
+        const thumbUrl = (prod.photo_url && prod.photo_url.trim() !== '') ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+        document.getElementById('dbEditThumb').src = thumbUrl;
+
+        editorCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeDbEditor() {
+        currentDbEditingProduct = null;
+        document.getElementById('dbEditorCard').style.display = 'none';
+    }
+
+    async function saveDbProductChanges() {
+        if (!currentDbEditingProduct) return;
+
+        const code = currentDbEditingProduct.product_code;
+        const newBarcode = document.getElementById('dbEditBarcode').value.trim();
+        const newName = document.getElementById('dbEditName').value.trim();
+        const newShelfCapacity = parseInt(document.getElementById('dbEditShelfCapacity').value, 10) || 0;
+
+        try {
+            // 1. Оновлюємо таблицю products
+            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(code)}`, {
+                method: 'PATCH',
+                headers: HEADERS,
+                body: JSON.stringify({ barcode: newBarcode, product_name: newName })
+            });
+
+            // 2. Оновлюємо або створюємо норму полиці в planograms
+            const existingPlano = globalPlanograms.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            if (existingPlano) {
+                await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(code)}`, {
+                    method: 'PATCH',
+                    headers: HEADERS,
+                    body: JSON.stringify({ shelf_capacity: newShelfCapacity })
+                });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({ product_code: code, shelf_capacity: newShelfCapacity, display_type: 'standard' })
+                });
+            }
+
+            alert("Дані товару успішно збережено!");
+            await loadAllData();
+            renderDbProductList();
+            closeDbEditor();
+
+        } catch (e) {
+            console.error(e);
+            alert("Помилка збереження даних.");
+        }
+    }
+
+    async function uploadDbProductPhoto(inputElem) {
+        if (!inputElem.files || inputElem.files.length === 0 || !currentDbEditingProduct) return;
+        const file = inputElem.files[0];
+
+        try {
+            alert("Завантаження фото...");
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${currentDbEditingProduct.product_code}_${Date.now()}.${fileExt}`;
+            const filePath = `photos/${fileName}`;
+
+            const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/product-photos/${filePath}`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    'content-type': file.type
+                },
+                body: file
+            });
+
+            if (!uploadRes.ok) throw new Error("Помилка завантаження фото в сховище.");
+
+            const publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
+
+            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentDbEditingProduct.product_code)}`, {
+                method: 'PATCH',
+                headers: { ...HEADERS, 'Prefer': 'return=minimal' },
+                body: JSON.stringify({ photo_url: publicUrlRes })
+            });
+
+            alert("Фото успішно оновлено!");
+            inputElem.value = '';
+            await loadAllData();
+            
+            selectDbProductForEdit(currentDbEditingProduct.product_code);
+            renderDbProductList();
+
+        } catch (e) {
+            console.error(e);
+            alert("Помилка завантаження фото: " + e.message);
+        }
+    }
+
+    function openAddNewProductModal() {
+        document.getElementById('newProdCodeInput').value = '';
+        document.getElementById('newProdBarcodeInput').value = '';
+        document.getElementById('newProdNameInput').value = '';
+        document.getElementById('newProdShelfInput').value = '0';
+        document.getElementById('addNewProductModal').classList.add('active');
+    }
+
+    function closeAddNewProductModal() {
+        document.getElementById('addNewProductModal').classList.remove('active');
+    }
+
+    async function submitNewProduct() {
+        const code = document.getElementById('newProdCodeInput').value.trim();
+        const barcode = document.getElementById('newProdBarcodeInput').value.trim();
+        const name = document.getElementById('newProdNameInput').value.trim() || 'Назва не вказана';
+        const shelf = parseInt(document.getElementById('newProdShelfInput').value, 10) || 0;
+
+        if (!code) {
+            alert("Будь ласка, введіть Код товару!");
+            return;
+        }
+
+        const existing = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+        if (existing) {
+            alert("Товар із таким кодом вже існує в базі!");
+            return;
+        }
+
+        try {
+            await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+                method: 'POST',
+                headers: HEADERS,
+                body: JSON.stringify({
+                    product_code: code,
+                    barcode: barcode || code,
+                    product_name: name
+                })
+            });
+
+            if (shelf > 0) {
+                await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({ product_code: code, shelf_capacity: shelf, display_type: 'standard' })
+                });
+            }
+
+            alert("Новий товар успішно додано в базу!");
+            closeAddNewProductModal();
+            await loadAllData();
+            renderDbProductList();
+
+        } catch (e) {
+            console.error(e);
+            alert("Помилка створення товару.");
         }
     }
 
