@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.5.2 - Складський облік (FIFO з партіями)</title>
+    <title>SmartBox v4.5.3 - Складський облік (FIFO з партіями)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -111,7 +111,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.5.2 (Оновлено: 26.10.2026 11:25)</div>
+        <div class="app-version">SmartBox v4.5.3 (Оновлено: 26.10.2026 12:00)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -1366,15 +1366,12 @@
         try {
             const nowIso = new Date().toISOString();
 
-            // 1. Обновляем или создаем запись в inventory_boxes
+            // 1. Проверяем наличие ящика и товара в inventory_boxes
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existing = await checkRes.json();
 
-            let baseArrivalDate = nowIso;
-
             if (existing && existing.length > 0) {
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
-                baseArrivalDate = existing[0].arrival_date || nowIso;
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
                     method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
                 });
@@ -1385,29 +1382,28 @@
                 });
             }
 
-            // 2. Синхронизируем с таблицей box_batches
-            const batchesCheckRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
-            const existingBatches = await batchesCheckRes.json();
+            // 2. ВСЕГДА создаем новую отдельную партию в таблице box_batches с текущим временем!
+            const batchRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
+                method: 'POST', 
+                headers: HEADERS,
+                body: JSON.stringify({ 
+                    box_name: currentArrivalBox, 
+                    product_code: finalProductCode, 
+                    qty: 1, 
+                    arrival_date: nowIso 
+                })
+            });
 
-            if (!existingBatches || existingBatches.length === 0) {
-                // Инициализируем первую партию базовой датой
-                await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
-                    method: 'POST', headers: HEADERS,
-                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: (existing && existing.length > 0 ? existing[0].qty : 1), arrival_date: baseArrivalDate })
-                });
-            } else {
-                // Создаем новую отдельную партию (микс дат) при каждой досылке
-                await fetch(`${SUPABASE_URL}/rest/v1/box_batches`, {
-                    method: 'POST', headers: HEADERS,
-                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso })
-                });
+            if (!batchRes.ok) {
+                const errText = await batchRes.text();
+                console.error("Помилка запису партії в box_batches:", errText);
             }
 
             sessionArrivalItems.unshift({ scanned_code: scannedCode, box_name: currentArrivalBox, product_code: finalProductCode, product_name: finalProductName, time: new Date().toLocaleTimeString('uk-UA') });
             renderArrivalTable();
             document.getElementById('arrivalCountDisplay').innerText = sessionArrivalItems.length;
             await loadAllData();
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Помилка приходу:", e); }
     }
 
     function renderArrivalTable() {
