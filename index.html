@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.4 - Складський облік (FIFO)</title>
+    <title>SmartBox v4.4.1 - Складський облік (FIFO)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -111,7 +111,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.4.0 (Оновлено: 26.10.2026 10:30)</div>
+        <div class="app-version">SmartBox v4.4.1 (Оновлено: 26.10.2026 10:42)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -632,13 +632,7 @@
                     const d = new Date(b.arrival_date);
                     dStr = d.toLocaleDateString('uk-UA');
                 }
-                
-                // Проверяем наличие смешивания дат в этом ящике (если в базе у товара есть массив/логика, либо по аналогии)
-                // Для демонстрации концепта: если arrival_date отличается от свежего или содержит несколько дат
-                let dateDisplayHtml = dStr;
-                // Условный маркер микса дат можно завязать на доп. проверку или поле
-                // В данном прототипе покажем стандартно с возможностью клика или симуляцией
-                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dateDisplayHtml})</small><br>`;
+                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dStr})</small><br>`;
             });
 
             const tr = document.createElement('tr');
@@ -723,8 +717,21 @@
                     
                     allocatedForThisProduct += take;
 
-                    let dStr = '12.06.2026'; // Пример даты для демонстрации
-                    let hasMixed = true; // Тест отображения микса дат
+                    let dStr = '—';
+                    if (box.arrival_date) {
+                        const d = new Date(box.arrival_date);
+                        dStr = d.toLocaleDateString('uk-UA');
+                    }
+
+                    // Реальная проверка смешивания (если в записи ящика зафиксировано несколько дат через разделитель или признак)
+                    let hasMixed = false;
+                    let batches = [{ date: dStr, qty: boxQty }];
+                    
+                    if (box.arrival_date && box.arrival_date.includes('|')) {
+                        hasMixed = true;
+                        // Парсим реальные партии из строки базы
+                        // ...
+                    }
 
                     rowsData.push({
                         code: code,
@@ -738,10 +745,7 @@
                         takeQty: take,
                         arrivalDate: dStr,
                         hasMixed: hasMixed,
-                        mixedBatches: [
-                            { date: '12.06.2026', qty: 1 },
-                            { date: '23.07.2026', qty: boxQty - take }
-                        ]
+                        mixedBatches: batches
                     });
                 }
             });
@@ -782,7 +786,6 @@
                 const itemCard = document.createElement('div');
                 itemCard.className = 'item-card';
 
-                // Формируем отображение даты с ярлычком Микс дат, если есть смешивание
                 let dateHtml = `прихід: ${row.arrivalDate}`;
                 if (row.hasMixed) {
                     dateHtml = `прихід: <span onclick="openMixedDatesModal('${encodeURIComponent(JSON.stringify(row.mixedBatches))}')" style="color: #ffc107; cursor: pointer; font-weight: bold; text-decoration: underline;">Мікс дат ⚠️</span>`;
@@ -1296,7 +1299,7 @@
             const existing = await checkRes.json();
 
             if (existing && existing.length > 0) {
-                // ПРИ ПОВТОРНОМУ ДОКЛАДАННІ ТОВАРУ В ЯЩИК: МИ НЕ ЗМІНЮЄМО СТАРУ ДАТУ ПРИХОДУ! (зберігаємо принцип FIFO)
+                // ПРИ ПОВТОРНОМУ ДОКЛАДАННІ: ЗБЕРІГАЄМО СТАРУ ДАТУ ПРИХОДУ (ПРИНЦИП FIFO)
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
                     method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
