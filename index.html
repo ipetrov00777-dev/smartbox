@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.7.1 - Складський облік</title>
+    <title>SmartBox v4.7.2 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -128,7 +128,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.7.1 (Оновлено: 01.11.2026)</div>
+        <div class="app-version">SmartBox v4.7.2 (Оновлено: 01.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -413,8 +413,8 @@
 
                 <div style="flex: 1; min-width: 0;">
                     <div class="form-group" style="margin-bottom: 6px;">
-                        <label style="font-size: 11px; color: #aaa;">Код товару (незмінний):</label>
-                        <input type="text" id="dbEditCode" disabled style="background: #222; color: #64b5f6; font-weight: bold; padding: 6px;">
+                        <label style="font-size: 11px; color: #aaa;">Код товару (product_code):</label>
+                        <input type="text" id="dbEditCode" style="background: #2b2b2b; color: #64b5f6; font-weight: bold; padding: 6px;">
                     </div>
                     <div class="form-group" style="margin-bottom: 6px;">
                         <label style="font-size: 11px; color: #aaa;">Штрихкод:</label>
@@ -782,7 +782,9 @@
                 errorsPlusMinus[codeLower] = { zag: totalZag, skl: totalSkl };
             }
 
-            if (!hasZag) {
+            // ПРАВИЛО: Заг. = ? ставимо ТІЛЬКИ якщо товари є в Google-остатках ИЛИ по ним есть данные 1С, 
+            // но для заглушек БД_? это отдельная категория.
+            if (!hasZag && !prodName.includes('БД_?') && !code.includes('БД_?')) {
                 errorsNoZag[codeLower] = { skl: totalSkl };
             }
 
@@ -910,7 +912,7 @@
         } else if (type === 'dbQuestion') {
             borderLeftColor = '#ff9800';
             badgeHtml = `<span onclick="jumpToDbEdit('${code}')" class="total-badge" style="background: #ff9800; color: #000; cursor: pointer; font-size: 11px;">БД_?</span>`;
-            infoSubText = `Штрихкод / Код: ${barcodeVal} (Потрібно перейменувати в БД)`;
+            infoSubText = `Штрихкод: ${barcodeVal} (Товар-заглушка, потрібен код з 1С)`;
             actionBtnText = '✎ В базу';
         }
 
@@ -924,7 +926,7 @@
                     <div class="barcode-title" style="color: #64b5f6;">
                         ${barcodeVal} ${badgeHtml}
                     </div>
-                    <div style="font-size: 11px; color: #aaa; font-weight: bold;">Шк / Код: ${code.toUpperCase()}</div>
+                    <div style="font-size: 11px; color: #aaa; font-weight: bold;">Код: ${code.toUpperCase()}</div>
                     <div class="prod-name-sub">${prodName}</div>
                     <div style="font-size: 11px; color: #bbb; margin-top: 3px;">${infoSubText}</div>
                 </div>
@@ -1137,9 +1139,15 @@
             const code = plano.product_code;
             const codeLower = code?.toLowerCase();
 
+            // КРИТИЧНЕ ПРАВИЛО: Автопідсорт проводиться ВИКЛЮЧНО для тих товарів, 
+            // які присутні в таблиці залишків Google Таблиці (google_stock)!
+            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === codeLower);
+            if (!gItem || gItem.stock === undefined || gItem.stock === null) {
+                return; // Якщо немає в Google-остатках — автопідсорт не йде!
+            }
+
             if (reservedProductCodesInCart.includes(codeLower) || 
-                catErrors.plusMinus[codeLower] !== undefined || 
-                catErrors.noZag[codeLower] !== undefined) {
+                catErrors.plusMinus[codeLower] !== undefined) {
                 return; 
             }
 
@@ -1152,8 +1160,7 @@
             const totalSkl = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
             if (totalSkl <= 0) return;
 
-            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === codeLower);
-            const totalZag = gItem ? (parseInt(gItem.stock, 10) || 0) : totalSkl;
+            const totalZag = parseInt(gItem.stock, 10) || 0;
 
             const currentTZ = totalZag - totalSkl;
             const deficit = norm - currentTZ;
@@ -1218,7 +1225,7 @@
         }
 
         if (rowsData.length === 0) {
-            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Підсорт не потрібен (або товари в корзині / мають помилки обліку).</div>';
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Підсорт не потрібен (відсутні товари в google_stock або немає дефіциту).</div>';
             return;
         }
 
@@ -1817,15 +1824,15 @@
         const codeLower = scannedCode.toLowerCase();
         const prodInfo = globalProducts.find(p => (p.product_code?.toLowerCase() === codeLower) || (p.barcode?.toLowerCase() === codeLower));
 
-        let finalProductCode = prodInfo ? prodInfo.product_code : scannedCode;
-        let finalBarcode = prodInfo ? (prodInfo.barcode || scannedCode) : scannedCode;
+        let finalProductCode = prodInfo ? prodInfo.product_code : 'БД_' + scannedCode;
+        let finalBarcode = scannedCode;
         let finalProductName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'БД_?';
 
         if (!prodInfo) {
             try {
                 await fetch(`${SUPABASE_URL}/rest/v1/products`, {
                     method: 'POST', headers: HEADERS,
-                    body: JSON.stringify({ product_code: scannedCode, product_name: 'БД_?', barcode: scannedCode })
+                    body: JSON.stringify({ product_code: finalProductCode, product_name: 'БД_?', barcode: finalBarcode })
                 });
                 await loadAllData();
             } catch (e) { console.error(e); }
@@ -2208,30 +2215,36 @@
     async function saveDbProductChanges() {
         if (!currentDbEditingProduct) return;
 
-        const code = currentDbEditingProduct.product_code;
+        const oldCode = currentDbEditingProduct.product_code;
+        const newCode = document.getElementById('dbEditCode').value.trim();
         const newBarcode = document.getElementById('dbEditBarcode').value.trim();
         const newName = document.getElementById('dbEditName').value.trim();
         const newShelfCapacity = parseInt(document.getElementById('dbEditShelfCapacity').value, 10) || 0;
 
+        if (!newCode) {
+            alert("Код товару не може бути порожнім!");
+            return;
+        }
+
         try {
-            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(code)}`, {
+            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(oldCode)}`, {
                 method: 'PATCH',
                 headers: HEADERS,
-                body: JSON.stringify({ barcode: newBarcode, product_name: newName })
+                body: JSON.stringify({ product_code: newCode, barcode: newBarcode, product_name: newName })
             });
 
-            const existingPlano = globalPlanograms.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const existingPlano = globalPlanograms.find(p => p.product_code?.toLowerCase() === oldCode.toLowerCase());
             if (existingPlano) {
-                await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(code)}`, {
+                await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(oldCode)}`, {
                     method: 'PATCH',
                     headers: HEADERS,
-                    body: JSON.stringify({ shelf_capacity: newShelfCapacity })
+                    body: JSON.stringify({ product_code: newCode, shelf_capacity: newShelfCapacity })
                 });
-            } else {
+            } else if (newShelfCapacity > 0) {
                 await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
                     method: 'POST',
                     headers: HEADERS,
-                    body: JSON.stringify({ product_code: code, shelf_capacity: newShelfCapacity, display_type: 'standard' })
+                    body: JSON.stringify({ product_code: newCode, shelf_capacity: newShelfCapacity, display_type: 'standard' })
                 });
             }
 
@@ -2316,7 +2329,7 @@
             await loadAllData();
             
             selectDbProductForEdit(currentDbEditingProduct.product_code);
-            renderDbProductList();
+            renderDbPhotoList();
 
         } catch (e) {
             console.error(e);
@@ -2376,7 +2389,7 @@
                 const filePath = `photos/${fileName}`;
 
                 const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/product-photos/${filePath}`, {
-                    method: 'POST',
+                    post: 'POST',
                     headers: {
                         'apikey': SUPABASE_KEY,
                         'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -2386,7 +2399,7 @@
                 });
 
                 if (uploadRes.ok) {
-                    uploadedPhotoUrl = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
+                    uploadedScanUrl = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
                 }
             }
 
