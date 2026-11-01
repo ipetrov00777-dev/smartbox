@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.6.5 - Складський облік (Контроль помилок)</title>
+    <title>SmartBox v4.6.6 - Складський облік (Візуальне оновлення)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -127,7 +127,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.6.5 (Оновлено: 01.11.2026)</div>
+        <div class="app-version">SmartBox v4.6.6 (Оновлено: 01.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -217,7 +217,7 @@
         </div>
     </div>
 
-    <!-- НОВИЙ РОЗДІЛ: ПОМИЛКИ -->
+    <!-- РОЗДІЛ: ПОМИЛКИ -->
     <div id="errorsSection" class="screen">
         <div class="header-bar">
             <div>
@@ -228,7 +228,7 @@
         </div>
         <div class="card">
             <p style="font-size: 12px; color: #aaa; margin-top: 0; line-height: 1.4;">
-                Нижче наведено список товарів, де фактичний залишок на складі (<b style="color:#fff">Склад</b>) перевищує обліковий залишок 1С (<b style="color:#fff">Заг</b>). Автоматичний підсорт для них заблоковано.
+                Нижче наведено список товарів, де фактичний залишок на складі (<b style="color:#fff">Скл.</b>) перевищує обліковий залишок 1С (<b style="color:#fff">Заг.</b>). Автоматичний підсорт для них заблоковано.
             </p>
             <div id="errorsCardsContainer" style="margin-top: 10px;"></div>
         </div>
@@ -457,10 +457,10 @@
 
         <div class="modal-batch-list" style="border-color: #dc3545;">
             <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #333;">
-                <span>Облік 1С (<b style="color:#ffc107;">Заг</b>):</span> <b id="errModalZag" style="color:#ffc107;">0 шт.</b>
+                <span>Облік 1С (<b style="color:#ffc107;">Заг.</b>):</span> <b id="errModalZag" style="color:#ffc107;">0 шт.</b>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 4px 0;">
-                <span>Фактичний склад (<b style="color:#64b5f6;">Склад</b>):</span> <b id="errModalSkl" style="color:#64b5f6;">0 шт.</b>
+                <span>Фактичний склад (<b style="color:#64b5f6;">Скл.</b>):</span> <b id="errModalSkl" style="color:#64b5f6;">0 шт.</b>
             </div>
         </div>
 
@@ -843,7 +843,7 @@
                         <div style="font-size: 11px; color: #64b5f6; font-weight: bold;">Код: ${code.toUpperCase()}</div>
                         <div class="prod-name-sub">${prodName}</div>
                         <div style="font-size: 11px; color: #ffc107; margin-top: 3px;">
-                            Заг (1С): <b>${errInfo.zag} шт.</b> | Склад (факт): <b>${errInfo.skl} шт.</b>
+                            Заг. = <b>${errInfo.zag} шт.</b> | Скл. = <b>${errInfo.skl} шт.</b>
                         </div>
                     </div>
                 </div>
@@ -923,18 +923,24 @@
             const normVal = hasNorm ? plano.shelf_capacity : null;
 
             let tzVal = '?';
+            let tzStr = '?';
+            
             if (hasZag) {
                 tzVal = totalZag - totalSkl;
+                if (tzVal < 0) {
+                    tzStr = `<span style="color: #ff6b6b; font-weight: bold;">${tzVal} шт.</span>`;
+                } else {
+                    tzStr = `${tzVal} шт.`;
+                }
             }
 
             const isHasError = errorMap[code.toLowerCase()] !== undefined;
-            let zagStr = hasZag ? `${totalZag}шт.` : '?';
+            let zagStr = hasZag ? `${totalZag} шт.` : '?';
             if (isHasError) {
-                zagStr = `<span onclick="openErrorModal('${code}')" style="color: #ff6b6b; cursor: pointer; font-weight: bold;" title="Клікніть для деталей помилки">${totalZag}шт. +/- ⚠️</span>`;
+                zagStr = `<span onclick="openErrorModal('${code}')" style="color: #ff6b6b; cursor: pointer; font-weight: bold;" title="Клікніть для деталей помилки">${totalZag} шт. +/- ⚠️</span>`;
             }
 
-            const tzStr = hasZag ? `${tzVal}шт.` : '?';
-            const sklStr = `${totalSkl}шт.`;
+            const sklStr = `${totalSkl} шт.`;
             const normStr = hasNorm ? `(${normVal}*)` : '(?)';
 
             const isMissingData = (!hasZag || !hasNorm || isHasError);
@@ -960,7 +966,7 @@
                     dateDisplayStr = new Date(b.arrival_date).toLocaleDateString('uk-UA');
                 }
 
-                boxesHtml += `📍 <b>${b.box_name}</b>: ${b.qty} шт. <small style="color:#aaa">(${dateDisplayStr})</small><br>`;
+                boxesHtml += `📦 <b>${b.box_name}</b> = ${b.qty} шт. <small style="color:#aaa">(${dateDisplayStr})</small><br>`;
             });
 
             const tr = document.createElement('tr');
@@ -978,9 +984,9 @@
                     </div>
                     <div style="font-size: 12px; color: #fff; margin-bottom: 6px; line-height: 1.3;">${prodName}</div>
                     <div style="font-size: 11px; color: #aaa; line-height: 1.4;">
-                        Заг: <b>${zagStr}</b><br>
-                        ТЗ: <b>${tzStr}</b><br>
-                        Скл: <b>${sklStr}</b> ${normStr}
+                        Заг. = <b>${zagStr}</b><br>
+                        ТЗ. = <b>${tzStr}</b><br>
+                        Скл. = <b>${sklStr}</b> ${normStr}
                     </div>
                 </td>
                 <td>
@@ -1125,6 +1131,11 @@
                     dateHtml = `прихід: <span onclick="openMixedDatesModal('${encodeURIComponent(JSON.stringify(row.mixedBatches))}')" style="color: #ffc107; cursor: pointer; font-weight: bold; text-decoration: underline;">Мікс дат ⚠️</span>`;
                 }
 
+                let tzFormatted = `${row.currentTZ} шт.`;
+                if (row.currentTZ < 0) {
+                    tzFormatted = `<span style="color: #ff6b6b; font-weight: bold;">${row.currentTZ} шт.</span>`;
+                }
+
                 itemCard.innerHTML = `
                     <div class="card-left-flex">
                         <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Товар">
@@ -1134,7 +1145,7 @@
                             <div class="prod-name-sub">${row.prodName}</div>
                             <div style="font-size: 11px; color: #64b5f6; margin-top: 3px; line-height: 1.3;">
                                 Норма: <b>${row.norm} шт.</b><br>
-                                Зараз в ТЗ: <b>${row.currentTZ} шт.</b><br>
+                                Зараз в ТЗ: <b>${tzFormatted}</b><br>
                                 <span onclick="openInfoModal()" style="cursor: pointer; text-decoration: underline; color: #90caf9;">В ящику: <b>${row.boxQty} шт.*</b></span>
                             </div>
                         </div>
