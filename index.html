@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.6.3 - Складський облік (Повні назви в БД)</title>
+    <title>SmartBox v4.6.5 - Складський облік (Контроль помилок)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -23,6 +23,16 @@
         .menu-btn.db-btn:hover { background: #ff9800; color: #000; }
         .menu-btn.full-width { grid-column: span 2; background: #28a745; color: #fff; border-color: #28a745; }
         .menu-btn.full-width:hover { background: #218838; }
+
+        /* Кнопка помилок: динамічний стан */
+        .menu-btn.error-btn { border-color: #555; color: #888; background: #191919; opacity: 0.5; transition: all 0.3s; }
+        .menu-btn.error-btn.has-errors { border-color: #dc3545; color: #fff; background: #dc3545; opacity: 1; animation: pulseErrorBtn 1.5s infinite; }
+        
+        @keyframes pulseErrorBtn {
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
         
         .badge-count { position: absolute; top: 8px; right: 8px; background: #dc3545; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; }
 
@@ -72,9 +82,7 @@
         .barcode-title { font-size: 13px; font-weight: bold; color: #28a745; word-break: break-all; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
         .qty-highlight { font-size: 13px; font-weight: bold; color: #28a745; white-space: nowrap; }
         
-        /* ЗМІНЕНО: тепер назва товару не обрізається, а переноситься повністю */
         .prod-name-sub { font-size: 12px; color: #bbb; line-height: 1.3; word-break: break-word; overflow-wrap: break-word; }
-        
         .card-right-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; flex-shrink: 0; text-align: right; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
@@ -108,6 +116,9 @@
             <button class="menu-btn" onclick="openSection('podsortSection')">🤖 Підсорт</button>
             <button class="menu-btn" style="background: #1a2733;" onclick="openSection('warehouseSection')">📦 Склад</button>
             <button class="menu-btn" onclick="openSection('shelfSection')">⚙️ Норма полиці</button>
+            <button id="menuErrorBtn" class="menu-btn error-btn" onclick="openSection('errorsSection')">
+                ⚠️ Помилки <span id="menuErrorBadge" class="badge-count" style="display:none;">0</span>
+            </button>
             <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
             <button class="menu-btn" onclick="openSection('historySection')">📜 Історія</button>
             <button class="menu-btn" onclick="openSection('arrivalSection')">📥 Приход</button>
@@ -116,7 +127,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.6.4 (Оновлено: 26.10.2026, 20:25)</div>
+        <div class="app-version">SmartBox v4.6.5 (Оновлено: 01.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -203,6 +214,23 @@
             </div>
 
             <div id="podsortCardsContainer" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <!-- НОВИЙ РОЗДІЛ: ПОМИЛКИ -->
+    <div id="errorsSection" class="screen">
+        <div class="header-bar">
+            <div>
+                <h2 style="margin: 0;">⚠️ Системні помилки</h2>
+                <div style="font-size: 11px; color: #dc3545;">Розбіжність обліку 1С та складу</div>
+            </div>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        <div class="card">
+            <p style="font-size: 12px; color: #aaa; margin-top: 0; line-height: 1.4;">
+                Нижче наведено список товарів, де фактичний залишок на складі (<b style="color:#fff">Склад</b>) перевищує обліковий залишок 1С (<b style="color:#fff">Заг</b>). Автоматичний підсорт для них заблоковано.
+            </p>
+            <div id="errorsCardsContainer" style="margin-top: 10px;"></div>
         </div>
     </div>
 
@@ -369,7 +397,6 @@
             </div>
         </div>
 
-        <!-- КАРТОЧКА РЕДАКТУВАННЯ ТОВАРУ З БД -->
         <div id="dbEditorCard" class="card" style="display: none; border: 2px solid #ff9800; background: #1a1a1a;">
             <div class="cart-header-flex">
                 <h3 style="color: #ff9800;">✎ Редагування картки товару</h3>
@@ -420,7 +447,48 @@
 
 </div>
 
-<!-- МОДАЛКА СТВОРЕННЯ НОВОГО ТОВАРУ (З ФОТО) -->
+<!-- МОДАЛКА ПОМИЛКИ РОЗБІЖНОСТІ 1С (УКРАЇНСЬКОЮ) -->
+<div id="errorModal" class="modal-overlay" onclick="closeErrorModal()">
+    <div class="info-modal-content" onclick="event.stopPropagation()" style="border-color: #dc3545;">
+        <h3 style="color: #dc3545; margin-top: 0;">⚠️ Увага: Розбіжність облікових залишків</h3>
+        
+        <p style="margin-bottom: 8px;"><b>Товар:</b> <span id="errModalProdName" style="color:#64b5f6;">---</span></p>
+        <p style="margin-top: 0; margin-bottom: 12px;"><b>Штрихкод / Код:</b> <span id="errModalProdCode" style="color:#28a745;">---</span></p>
+
+        <div class="modal-batch-list" style="border-color: #dc3545;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #333;">
+                <span>Облік 1С (<b style="color:#ffc107;">Заг</b>):</span> <b id="errModalZag" style="color:#ffc107;">0 шт.</b>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                <span>Фактичний склад (<b style="color:#64b5f6;">Склад</b>):</span> <b id="errModalSkl" style="color:#64b5f6;">0 шт.</b>
+            </div>
+        </div>
+
+        <p style="font-size: 13px; line-height: 1.4; color: #ddd;">
+            Виявлено системну розбіжність: фактична кількість товару на складі перевищує облікові дані з 1С. Через це автоматичний розрахунок підсорту для цієї позиції заблоковано, щоб уникнути помилок.
+        </p>
+
+        <p style="font-size: 12px; color: #aaa; margin-bottom: 6px;"><b>Можливі причини:</b></p>
+        <ul style="font-size: 12px; color: #aaa; padding-left: 18px; margin-top: 0; margin-bottom: 12px; line-height: 1.4;">
+            <li>Дані в системі застаріли (програма не має прямого підключення до 1С).</li>
+            <li>Був прихід товару, який уже фізично розмістили на складі, але свіжу вигрузку на лист <b>«Залишок»</b> у Google Таблицю ще не робили.</li>
+        </ul>
+
+        <p style="font-size: 12px; color: #aaa; margin-bottom: 4px;"><b>Що робити:</b></p>
+        <ul style="font-size: 12px; color: #aaa; padding-left: 18px; margin-top: 0; margin-bottom: 15px; line-height: 1.4;">
+            <li>Зробіть актуальну вигрузку з 1С та оновіть дані в таблиці <code>Залишок</code>.</li>
+            <li>Або проведіть поточну інвентаризацію цієї позиції.</li>
+        </ul>
+
+        <p style="font-size: 11px; color: #81c784; font-style: italic; margin-bottom: 15px;">
+            * Примітка: Товар тимчасово не бере участі в автопідсорті, але доступний для ручної видачі через сканування та кошик, якщо він терміново потрібен покупцю.
+        </p>
+
+        <button class="global-cart-btn" style="background: #1a73e8; margin-top: 0;" onclick="closeErrorModal()">Зрозуміло</button>
+    </div>
+</div>
+
+<!-- МОДАЛКА СТВОРЕННЯ НОВОГО ТОВАРУ -->
 <div id="addNewProductModal" class="modal-overlay" onclick="closeAddNewProductModal()">
     <div class="info-modal-content" onclick="event.stopPropagation()" style="border-color: #ff9800;">
         <h3 style="color: #ff9800; margin-top: 0;">+ Додати новий товар</h3>
@@ -523,6 +591,7 @@
         await ensureActiveOrder();
         await loadAllData();
         updateCartBadge();
+        updateErrorsBadge();
     }
 
     function resetInfoSection() {
@@ -556,6 +625,9 @@
         }
         if (screenId === 'podsortSection') {
             loadAllData().then(() => renderPodsort());
+        }
+        if (screenId === 'errorsSection') {
+            loadAllData().then(() => renderErrorsScreen());
         }
         if (screenId === 'cartSection') {
             isCartEditMode = false;
@@ -671,6 +743,7 @@
             }
 
             updateCartBadge();
+            updateErrorsBadge();
             updateSyncStamps();
         } catch (e) { console.error("Помилка завантаження даних:", e); }
     }
@@ -685,6 +758,123 @@
         if (whElem) whElem.innerText = stampText;
         const psElem = document.getElementById('podsortSyncStamp');
         if (psElem) psElem.innerText = stampText;
+    }
+
+    // --- ФУНКЦІЇ ДЛЯ РОБОТИ З ПОМИЛКАМИ (Заг < Склад) ---
+
+    function getErrorProductsMap() {
+        const groupedWarehouse = {};
+        globalStock.forEach(item => {
+            const code = item.product_code;
+            if (!groupedWarehouse[code]) groupedWarehouse[code] = [];
+            groupedWarehouse[code].push(item);
+        });
+
+        const errorMap = {};
+        Object.keys(groupedWarehouse).forEach(code => {
+            const items = groupedWarehouse[code];
+            const totalSkl = items.reduce((sum, i) => sum + (parseInt(i.qty, 10) || 0), 0);
+
+            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === code.toLowerCase());
+            const hasZag = (gItem && gItem.stock !== undefined && gItem.stock !== null);
+            const totalZag = hasZag ? parseInt(gItem.stock, 10) : 0;
+
+            if (hasZag && totalZag < totalSkl) {
+                errorMap[code.toLowerCase()] = {
+                    zag: totalZag,
+                    skl: totalSkl
+                };
+            }
+        });
+        return errorMap;
+    }
+
+    function updateErrorsBadge() {
+        const errorMap = getErrorProductsMap();
+        const count = Object.keys(errorMap).length;
+        const btn = document.getElementById('menuErrorBtn');
+        const badge = document.getElementById('menuErrorBadge');
+
+        if (!btn || !badge) return;
+
+        if (count > 0) {
+            btn.classList.add('has-errors');
+            badge.style.display = 'inline-block';
+            badge.innerText = count;
+        } else {
+            btn.classList.remove('has-errors');
+            badge.style.display = 'none';
+            badge.innerText = '0';
+        }
+    }
+
+    function renderErrorsScreen() {
+        const container = document.getElementById('errorsCardsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const errorMap = getErrorProductsMap();
+        const codes = Object.keys(errorMap);
+
+        if (codes.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #28a745; padding: 25px; font-weight: bold;">Чудово! Немає системних розбіжностей залишків.</div>';
+            return;
+        }
+
+        codes.forEach(code => {
+            const errInfo = errorMap[code];
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const prodName = prod ? prod.product_name : 'Назва не вказана';
+            const barcodeVal = prod && prod.barcode ? prod.barcode : '—';
+            const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+
+            const card = document.createElement('div');
+            card.className = 'item-card';
+            card.style.background = '#2a1a1a';
+            card.style.borderLeft = '4px solid #dc3545';
+
+            card.innerHTML = `
+                <div class="card-left-flex">
+                    <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
+                    <div class="card-details">
+                        <div class="barcode-title" style="color: #ff6b6b;">
+                            ${barcodeVal} <span onclick="openErrorModal('${code}')" class="total-badge" style="background: #dc3545; color: #fff; cursor: pointer; font-size: 11px;">+/- ⚠️</span>
+                        </div>
+                        <div style="font-size: 11px; color: #64b5f6; font-weight: bold;">Код: ${code.toUpperCase()}</div>
+                        <div class="prod-name-sub">${prodName}</div>
+                        <div style="font-size: 11px; color: #ffc107; margin-top: 3px;">
+                            Заг (1С): <b>${errInfo.zag} шт.</b> | Склад (факт): <b>${errInfo.skl} шт.</b>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-right-action">
+                    <button class="edit-toggle-btn" style="border-color: #dc3545; color: #ff6b6b; background: #331a1a;" onclick="openErrorModal('${code}')">ℹ Деталі</button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function openErrorModal(productCode) {
+        const codeLower = productCode.toLowerCase();
+        const errMap = getErrorProductsMap();
+        const errInfo = errMap[codeLower];
+        if (!errInfo) return;
+
+        const prod = globalProducts.find(p => p.product_code?.toLowerCase() === codeLower);
+        const prodName = prod ? prod.product_name : 'Назва не вказана';
+        const barcodeVal = prod && prod.barcode ? prod.barcode : productCode;
+
+        document.getElementById('errModalProdName').innerText = prodName;
+        document.getElementById('errModalProdCode').innerText = `${barcodeVal} (Код: ${productCode.toUpperCase()})`;
+        document.getElementById('errModalZag').innerText = `${errInfo.zag} шт.`;
+        document.getElementById('errModalSkl').innerText = `${errInfo.skl} шт.`;
+
+        document.getElementById('errorModal').classList.add('active');
+    }
+
+    function closeErrorModal() {
+        document.getElementById('errorModal').classList.remove('active');
     }
 
     function renderWarehouseScreen() {
@@ -711,6 +901,8 @@
             return;
         }
 
+        const errorMap = getErrorProductsMap();
+
         codes.forEach(code => {
             const items = groupedWarehouse[code];
             items.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
@@ -735,12 +927,17 @@
                 tzVal = totalZag - totalSkl;
             }
 
-            const zagStr = hasZag ? `${totalZag}шт.` : '?';
+            const isHasError = errorMap[code.toLowerCase()] !== undefined;
+            let zagStr = hasZag ? `${totalZag}шт.` : '?';
+            if (isHasError) {
+                zagStr = `<span onclick="openErrorModal('${code}')" style="color: #ff6b6b; cursor: pointer; font-weight: bold;" title="Клікніть для деталей помилки">${totalZag}шт. +/- ⚠️</span>`;
+            }
+
             const tzStr = hasZag ? `${tzVal}шт.` : '?';
             const sklStr = `${totalSkl}шт.`;
             const normStr = hasNorm ? `(${normVal}*)` : '(?)';
 
-            const isMissingData = (!hasZag || !hasNorm);
+            const isMissingData = (!hasZag || !hasNorm || isHasError);
 
             let boxesHtml = '';
             items.forEach(b => {
@@ -767,7 +964,8 @@
             });
 
             const tr = document.createElement('tr');
-            if (isMissingData) tr.style.backgroundColor = '#3e1a1a';
+            if (isHasError) tr.style.backgroundColor = '#3a1a1a';
+            else if (isMissingData) tr.style.backgroundColor = '#3e2a1a';
 
             tr.innerHTML = `
                 <td>
@@ -806,26 +1004,29 @@
         }
 
         const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
+        const errorMap = getErrorProductsMap();
 
         let rowsData = [];
 
         globalPlanograms.forEach(plano => {
             const code = plano.product_code;
+            const codeLower = code?.toLowerCase();
 
-            if (reservedProductCodesInCart.includes(code?.toLowerCase())) {
+            // Пропускаємо товари, які в корзині або мають системну помилку розбіжності Заг < Склад
+            if (reservedProductCodesInCart.includes(codeLower) || errorMap[codeLower] !== undefined) {
                 return; 
             }
 
             const norm = parseInt(plano.shelf_capacity, 10) || 0;
             if (norm <= 0) return;
 
-            const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === code.toLowerCase());
+            const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === codeLower);
             stockMatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
             const totalSkl = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
             if (totalSkl <= 0) return;
 
-            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === code.toLowerCase());
+            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === codeLower);
             const totalZag = gItem ? (parseInt(gItem.stock, 10) || 0) : totalSkl;
 
             const currentTZ = totalZag - totalSkl;
@@ -833,7 +1034,7 @@
 
             if (deficit <= 0) return; 
 
-            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === codeLower);
             const prodName = prod ? prod.product_name : 'Назва не вказана';
             const barcodeDisplay = prod ? (prod.barcode || code) : code;
             const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
@@ -848,7 +1049,7 @@
                     
                     allocatedForThisProduct += take;
 
-                    const boxBatches = globalBatches.filter(bt => bt.box_name === box.box_name && bt.product_code.toLowerCase() === code.toLowerCase());
+                    const boxBatches = globalBatches.filter(bt => bt.box_name === box.box_name && bt.product_code.toLowerCase() === codeLower);
                     boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
 
                     let dStr = box.arrival_date ? new Date(box.arrival_date).toLocaleDateString('uk-UA') : '—';
@@ -891,7 +1092,7 @@
         }
 
         if (rowsData.length === 0) {
-            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Підсорт не потрібен (або товари в корзині).</div>';
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Підсорт не потрібен (або товари в корзині / мають помилки обліку).</div>';
             return;
         }
 
@@ -1505,7 +1706,6 @@
             const todayDay = todayObj.getDate();
             const nowIso = todayObj.toISOString();
 
-            // 1. Обновляем общую сумму в inventory_boxes
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existing = await checkRes.json();
 
@@ -1521,7 +1721,6 @@
                 });
             }
 
-            // 2. УМНЫЙ УЧЕТ ПАРТИЙ: ищем партию по календарной дате
             const batchesRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existingBatches = await batchesRes.json();
 
@@ -1792,8 +1991,6 @@
             alert("Помилка: " + e.message);
         }
     }
-
-    // --- ЛОГІКА ДЛЯ НОВОГО РОЗДІЛУ "БАЗА ДАНИХ" ---
 
     function renderDbProductList() {
         const container = document.getElementById('dbCatalogContainer');
