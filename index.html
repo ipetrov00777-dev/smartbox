@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.7.3 - Складський облік</title>
+    <title>SmartBox v4.7.4 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -128,7 +128,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.7.3 (Оновлено: 01.11.2026)</div>
+        <div class="app-version">SmartBox v4.7.4 (Оновлено: 01.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -569,6 +569,7 @@
     let currentScannedMatches = [];
     let currentProductName = '';
     let currentProductCode = '';
+    let currentScannedBarcode = ''; // Запоминаем реально отсканированный штрихкод
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
@@ -588,6 +589,7 @@
     function resetInfoSection() {
         currentProductCode = '';
         currentProductName = '';
+        currentScannedBarcode = '';
         currentScannedMatches = [];
         const resultCard = document.getElementById('productResultCard');
         if (resultCard) resultCard.style.display = 'none';
@@ -1410,6 +1412,8 @@
         const resultCard = document.getElementById('productResultCard');
         const codeLower = code.toLowerCase();
 
+        currentScannedBarcode = code; // Запоминаем то, что реально ввели/отсканировали
+
         const prodInfo = globalProducts.find(p => 
             (p.product_code && p.product_code.toLowerCase() === codeLower) || 
             (p.barcode && p.barcode.toLowerCase() === codeLower)
@@ -1426,7 +1430,7 @@
 
         document.getElementById('resProductName').innerText = currentProductName;
         document.getElementById('resProductCode').innerText = currentProductCode;
-        document.getElementById('resBarcode').innerText = prodInfo ? (prodInfo.barcode || '—') : '—';
+        document.getElementById('resBarcode').innerText = currentScannedBarcode; // Честно показываем отсканированный штрихкод
         
         currentScannedMatches = matches.map(item => ({ ...item, originalQty: parseInt(item.qty, 10) || 0 }));
         resultCard.style.display = 'block';
@@ -1542,7 +1546,8 @@
                         box_name: item.box_name,
                         product_code: currentProductCode,
                         product_name: currentProductName,
-                        qty_reserved: qtyToReserve
+                        qty_reserved: qtyToReserve,
+                        barcode: currentScannedBarcode // Передаем реально отсканированный штрихкод в корзинку
                     })
                 }));
             }
@@ -1613,7 +1618,8 @@
 
             itemsInBox.forEach(item => {
                 const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
-                const barcodeDisplay = prod ? (prod.barcode || item.product_code) : item.product_code;
+                // Отображаем сохраненный штрихкод из корзины, либо базовый из справочника
+                const barcodeDisplay = item.barcode || (prod ? (prod.barcode || item.product_code) : item.product_code);
                 const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
                 const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase());
@@ -2404,7 +2410,7 @@
                 const filePath = `photos/${fileName}`;
 
                 const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/product-photos/${filePath}`, {
-                    post: 'POST',
+                    method: 'POST',
                     headers: {
                         'apikey': SUPABASE_KEY,
                         'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -2414,7 +2420,7 @@
                 });
 
                 if (uploadRes.ok) {
-                    uploadedScanUrl = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
+                    uploadedPhotoUrl = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
                 }
             }
 
