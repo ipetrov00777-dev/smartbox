@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.7.2 - Складський облік</title>
+    <title>SmartBox v4.7.3 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -128,7 +128,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.7.2 (Оновлено: 01.11.2026)</div>
+        <div class="app-version">SmartBox v4.7.3 (Оновлено: 01.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -474,6 +474,7 @@
             <li>Перевірити дані в базі.</li>
         </ul>
 
+        <div id="errModalExtraBtnContainer" style="margin-bottom: 10px;"></div>
         <button class="global-cart-btn" style="background: #1a73e8; margin-top: 0;" onclick="closeErrorModal()">Зрозуміло</button>
     </div>
 </div>
@@ -752,8 +753,6 @@
         if (psElem) psElem.innerText = stampText;
     }
 
-    // --- РОЗШИРЕНА ЛОГІКА КАТЕГОРІЙ ПОМИЛОК (+/-, БД_?, Заг. = ?) ---
-
     function getCategorizedErrors() {
         const groupedWarehouse = {};
         globalStock.forEach(item => {
@@ -782,8 +781,6 @@
                 errorsPlusMinus[codeLower] = { zag: totalZag, skl: totalSkl };
             }
 
-            // ПРАВИЛО: Заг. = ? ставимо ТІЛЬКИ якщо товари є в Google-остатках ИЛИ по ним есть данные 1С, 
-            // но для заглушек БД_? это отдельная категория.
             if (!hasZag && !prodName.includes('БД_?') && !code.includes('БД_?')) {
                 errorsNoZag[codeLower] = { skl: totalSkl };
             }
@@ -911,7 +908,7 @@
             infoSubText = `Заг. = <b>?</b> | Скл. = <b>${errInfo.skl} шт.</b> (Автопідсорт вимкнено)`;
         } else if (type === 'dbQuestion') {
             borderLeftColor = '#ff9800';
-            badgeHtml = `<span onclick="jumpToDbEdit('${code}')" class="total-badge" style="background: #ff9800; color: #000; cursor: pointer; font-size: 11px;">БД_?</span>`;
+            badgeHtml = `<span onclick="openErrorModal('${code}', 'dbQuestion')" class="total-badge" style="background: #ff9800; color: #000; cursor: pointer; font-size: 11px;">БД_?</span>`;
             infoSubText = `Штрихкод: ${barcodeVal} (Товар-заглушка, потрібен код з 1С)`;
             actionBtnText = '✎ В базу';
         }
@@ -919,9 +916,11 @@
         card.style.background = '#2a1a1a';
         card.style.borderLeft = `4px solid ${borderLeftColor}`;
 
+        const clickAction = type === 'dbQuestion' ? `openErrorModal('${code}', 'dbQuestion')` : `openErrorModal('${code}', '${type}')`;
+
         card.innerHTML = `
-            <div class="card-left-flex">
-                <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
+            <div class="card-left-flex" style="cursor: pointer;" onclick="${clickAction}">
+                <img src="${photoUrl}" class="product-thumb" onclick="event.stopPropagation(); openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
                 <div class="card-details">
                     <div class="barcode-title" style="color: #64b5f6;">
                         ${barcodeVal} ${badgeHtml}
@@ -932,7 +931,7 @@
                 </div>
             </div>
             <div class="card-right-action">
-                <button class="edit-toggle-btn" style="border-color: ${borderLeftColor}; color: #fff; background: #331a1a;" onclick="${type === 'dbQuestion' ? `jumpToDbEdit('${code}')` : `openErrorModal('${code}', '${type}')`}">${actionBtnText}</button>
+                <button class="edit-toggle-btn" style="border-color: ${borderLeftColor}; color: #fff; background: #331a1a;" onclick="${type === 'dbQuestion' ? `jumpToDbEdit('${code}')` : clickAction}">${actionBtnText}</button>
             </div>
         `;
         return card;
@@ -959,6 +958,8 @@
         const batchList = document.getElementById('errModalBatchList');
         const descElem = document.getElementById('errModalDescription');
         const actionsElem = document.getElementById('errModalActions');
+        const extraBtnContainer = document.getElementById('errModalExtraBtnContainer');
+        extraBtnContainer.innerHTML = '';
 
         if (type === 'plusMinus') {
             const errInfo = cat.plusMinus[codeLower] || { zag: 0, skl: 0 };
@@ -983,6 +984,20 @@
             actionsElem.innerHTML = `
                 <li>Зробіть повну вигрузку всіх категорій товарів з 1С.</li>
                 <li>Якщо товар потрібен терміново — скористайтесь ручною видачею через корзинку.</li>
+            `;
+        } else if (type === 'dbQuestion') {
+            document.getElementById('errModalTitle').innerText = '🟠 Помилка: Товар-заглушка (БД_?)';
+            batchList.style.display = 'none';
+
+            descElem.innerText = 'Цей товар був відсканований під час приходу, але на той момент його не було в довіднику бази даних. Система автоматично створила тимчасову картку-заглушку з префіксом "БД_?" та прив\'язала штрихкод.';
+            actionsElem.innerHTML = `
+                <li>Зайдіть у довідник бази даних товарів.</li>
+                <li>Замініть тимчасовий код "БД_?" на реальний код товару з 1С.</li>
+                <li>Вкажіть актуальну назву товару.</li>
+            `;
+
+            extraBtnContainer.innerHTML = `
+                <button class="global-cart-btn" style="background: #ff9800; color: #000; margin-top: 5px;" onclick="closeErrorModal(); jumpToDbEdit('${productCode}')">✎ Редагувати в базі даних</button>
             `;
         }
 
@@ -1060,6 +1075,8 @@
                 zagStr = `<span onclick="openErrorModal('${code}', 'plusMinus')" style="color: #ff6b6b; cursor: pointer; font-weight: bold;" title="Клікніть для деталей">+ / - ⚠️</span>`;
             } else if (isHasNoZag) {
                 zagStr = `<span onclick="openErrorModal('${code}', 'noZag')" style="color: #ffc107; cursor: pointer; font-weight: bold;" title="Клікніть для деталей">Заг. = ?</span>`;
+            } else if (isHasDbQuestion) {
+                zagStr = `<span onclick="openErrorModal('${code}', 'dbQuestion')" style="color: #ff9800; cursor: pointer; font-weight: bold;" title="Клікніть для деталей">БД_?</span>`;
             }
 
             const sklStr = `${totalSkl} шт.`;
@@ -1139,11 +1156,9 @@
             const code = plano.product_code;
             const codeLower = code?.toLowerCase();
 
-            // КРИТИЧНЕ ПРАВИЛО: Автопідсорт проводиться ВИКЛЮЧНО для тих товарів, 
-            // які присутні в таблиці залишків Google Таблиці (google_stock)!
             const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === codeLower);
             if (!gItem || gItem.stock === undefined || gItem.stock === null) {
-                return; // Якщо немає в Google-остатках — автопідсорт не йде!
+                return;
             }
 
             if (reservedProductCodesInCart.includes(codeLower) || 
