@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.7.8 - Складський облік</title>
+    <title>SmartBox v4.7.9 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -128,7 +128,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.7.8 (Оновлено: 13.11.2026)</div>
+        <div class="app-version">SmartBox v4.7.9 (Оновлено: 13.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -1045,7 +1045,6 @@
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : 'Назва не вказана';
             
-            // Берем штрихкод из первой записи ящика или из базы
             const firstBoxWithBarcode = items.find(i => i.barcode);
             const barcodeVal = firstBoxWithBarcode ? firstBoxWithBarcode.barcode : (prod && prod.barcode ? prod.barcode : code);
             
@@ -1202,7 +1201,6 @@
                     
                     allocatedForThisProduct += take;
 
-                    // Берем штрихкод прямо из ящика, если он там есть, иначе из справочника
                     const barcodeDisplay = box.barcode || (prod ? (prod.barcode || code) : code);
 
                     const boxBatches = globalBatches.filter(bt => bt.box_name === box.box_name && bt.product_code.toLowerCase() === codeLower);
@@ -1545,29 +1543,52 @@
 
     async function addAllToCart() {
         if (!activeOrderId) await ensureActiveOrder();
-        const insertPromises = [];
+        
+        const requests = [];
+
         currentScannedMatches.forEach((item, idx) => {
             const qtyToReserve = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
             if (qtyToReserve > 0) {
-                // Если у самого ящика записан его штрихкод, берем его, иначе используем текущий отсканированный
                 const rowBarcode = item.barcode || currentActualBarcode;
-                insertPromises.push(fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
-                    method: 'POST',
-                    headers: HEADERS,
-                    body: JSON.stringify({
-                        order_id: activeOrderId,
-                        box_name: item.box_name,
-                        product_code: currentProductCode,
-                        product_name: currentProductName,
-                        qty_reserved: qtyToReserve,
-                        barcode: rowBarcode
-                    })
-                }));
+
+                const existingCartItem = dbCartItems.find(c => 
+                    c.box_name === item.box_name && 
+                    c.product_code.toLowerCase() === currentProductCode.toLowerCase()
+                );
+
+                if (existingCartItem) {
+                    const newQtyReserved = (parseInt(existingCartItem.qty_reserved, 10) || 0) + qtyToReserve;
+                    requests.push(
+                        fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${existingCartItem.id}`, {
+                            method: 'PATCH',
+                            headers: HEADERS,
+                            body: JSON.stringify({ 
+                                qty_reserved: newQtyReserved,
+                                barcode: rowBarcode 
+                            })
+                        })
+                    );
+                } else {
+                    requests.push(
+                        fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
+                            method: 'POST',
+                            headers: HEADERS,
+                            body: JSON.stringify({
+                                order_id: activeOrderId,
+                                box_name: item.box_name,
+                                product_code: currentProductCode,
+                                product_name: currentProductName,
+                                qty_reserved: qtyToReserve,
+                                barcode: rowBarcode
+                            })
+                        })
+                    );
+                }
             }
         });
 
-        if (insertPromises.length > 0) {
-            await Promise.all(insertPromises);
+        if (requests.length > 0) {
+            await Promise.all(requests);
             await loadAllData();
             renderLocationsTable();
             alert("Товари успішно додано в корзинку!");
@@ -1631,7 +1652,6 @@
 
             itemsInBox.forEach(item => {
                 const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
-                // В корзинке отображаем штрихкод, зафиксированный в заказе, либо из ящика, либо из базы
                 const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase());
                 const barcodeDisplay = item.barcode || (stockInBox && stockInBox.barcode ? stockInBox.barcode : (prod ? (prod.barcode || item.product_code) : item.product_code));
                 
@@ -1880,18 +1900,15 @@
             const todayDay = todayObj.getDate();
             const nowIso = todayObj.toISOString();
 
-            // Проверяем наличие записи товара в ящике
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existing = await checkRes.json();
 
             if (existing && existing.length > 0) {
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
-                // Обновляем количество и фиксируем штрихкод, по которому отсканировали
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
                     method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty, barcode: finalBarcode })
                 });
             } else {
-                // Создаем новую запись в ящике с сохранением отсканированного штрихкода
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
                     method: 'POST', headers: HEADERS, 
                     body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso, barcode: finalBarcode })
