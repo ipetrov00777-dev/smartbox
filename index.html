@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.7.7 - Складський облік</title>
+    <title>SmartBox v4.7.8 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -128,7 +128,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.7.7 (Оновлено: 13.11.2026)</div>
+        <div class="app-version">SmartBox v4.7.8 (Оновлено: 13.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -569,7 +569,7 @@
     let currentScannedMatches = [];
     let currentProductName = '';
     let currentProductCode = '';
-    let currentActualBarcode = ''; // СТРОГО тот штрихкод или код, который реально отсканировал или ввел сотрудник!
+    let currentActualBarcode = '';
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
@@ -1044,7 +1044,11 @@
             
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : 'Назва не вказана';
-            const barcodeVal = prod && prod.barcode ? prod.barcode : '—';
+            
+            // Берем штрихкод из первой записи ящика или из базы
+            const firstBoxWithBarcode = items.find(i => i.barcode);
+            const barcodeVal = firstBoxWithBarcode ? firstBoxWithBarcode.barcode : (prod && prod.barcode ? prod.barcode : code);
+            
             const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
             const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === code.toLowerCase());
@@ -1186,7 +1190,6 @@
 
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === codeLower);
             const prodName = prod ? prod.product_name : 'Назва не вказана';
-            const barcodeDisplay = prod ? (prod.barcode || code) : code;
             const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
             let allocatedForThisProduct = 0;
@@ -1198,6 +1201,9 @@
                     const take = Math.min(boxQty, needed);
                     
                     allocatedForThisProduct += take;
+
+                    // Берем штрихкод прямо из ящика, если он там есть, иначе из справочника
+                    const barcodeDisplay = box.barcode || (prod ? (prod.barcode || code) : code);
 
                     const boxBatches = globalBatches.filter(bt => bt.box_name === box.box_name && bt.product_code.toLowerCase() === codeLower);
                     boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
@@ -1408,44 +1414,34 @@
         });
     }
 
-    // СТРОГАЯ ЛОГИКА БЕЗ ПОДМЕН: Сохраняем реально отсканированное сотрудником значение!
     function processScannedCode(scannedVal) {
         const resultCard = document.getElementById('productResultCard');
         const valLower = scannedVal.toLowerCase();
 
-        // 1. Сначала ищем по коду товара (product_code)
         let foundProduct = globalProducts.find(p => p.product_code && p.product_code.toLowerCase() === valLower);
-
-        // 2. Если не нашли по коду товара, ищем по штрихкоду (barcode)
         if (!foundProduct) {
             foundProduct = globalProducts.find(p => p.barcode && p.barcode.toLowerCase() === valLower);
         }
 
         if (foundProduct) {
-            // Успешно нашли товар в базе
             currentProductCode = foundProduct.product_code;
             currentProductName = foundProduct.product_name || 'Назва не вказана';
         } else {
-            // Если товара нет в базе, используем введенное значение
             currentProductCode = scannedVal;
             currentProductName = 'Невідомий товар';
         }
 
-        // ЖЕЛЕЗОБЕТОННОЕ ПРАВИЛО: Для отображения и корзинки фиксируем РОВНО то, что ввел/отсканировал сотрудник! Никаких подмен!
         currentActualBarcode = scannedVal;
 
-        // 3. Подтягиваем фото
         const photoUrl = (foundProduct && foundProduct.photo_url) ? foundProduct.photo_url : NO_IMAGE_PLACEHOLDER;
         document.getElementById('resProductThumb').src = photoUrl;
 
-        // 4. Ищем ящики на складе СТРОГО по коду товара
         const matches = globalStock.filter(item => item.product_code && item.product_code.toLowerCase() === currentProductCode.toLowerCase());
         matches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
-        // 5. Заполняем карточку
         document.getElementById('resProductName').innerText = currentProductName;
         document.getElementById('resProductCode').innerText = currentProductCode;
-        document.getElementById('resBarcode').innerText = currentActualBarcode; // Выводим ровно то, что отсканировали
+        document.getElementById('resBarcode').innerText = currentActualBarcode;
         
         currentScannedMatches = matches.map(item => ({ ...item, originalQty: parseInt(item.qty, 10) || 0 }));
         resultCard.style.display = 'block';
@@ -1553,6 +1549,8 @@
         currentScannedMatches.forEach((item, idx) => {
             const qtyToReserve = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
             if (qtyToReserve > 0) {
+                // Если у самого ящика записан его штрихкод, берем его, иначе используем текущий отсканированный
+                const rowBarcode = item.barcode || currentActualBarcode;
                 insertPromises.push(fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
                     method: 'POST',
                     headers: HEADERS,
@@ -1562,7 +1560,7 @@
                         product_code: currentProductCode,
                         product_name: currentProductName,
                         qty_reserved: qtyToReserve,
-                        barcode: currentActualBarcode // Передаем в корзинку именно то, что отсканировал сотрудник!
+                        barcode: rowBarcode
                     })
                 }));
             }
@@ -1633,11 +1631,12 @@
 
             itemsInBox.forEach(item => {
                 const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
-                // В корзинке берем честно сохраненный при добавлении штрихкод (тот, что реально сканировали)
-                const barcodeDisplay = item.barcode || item.product_code;
+                // В корзинке отображаем штрихкод, зафиксированный в заказе, либо из ящика, либо из базы
+                const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase());
+                const barcodeDisplay = item.barcode || (stockInBox && stockInBox.barcode ? stockInBox.barcode : (prod ? (prod.barcode || item.product_code) : item.product_code));
+                
                 const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
-                const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase());
                 const currentBoxQty = stockInBox ? (parseInt(stockInBox.qty, 10) || 0) : 0;
                 const remainingAfterPick = Math.max(0, currentBoxQty - (parseInt(item.qty_reserved, 10) || 0));
 
@@ -1881,18 +1880,21 @@
             const todayDay = todayObj.getDate();
             const nowIso = todayObj.toISOString();
 
+            // Проверяем наличие записи товара в ящике
             const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}&select=*`, { headers: HEADERS });
             const existing = await checkRes.json();
 
             if (existing && existing.length > 0) {
                 const newQty = (parseInt(existing[0].qty, 10) || 0) + 1;
+                // Обновляем количество и фиксируем штрихкод, по которому отсканировали
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(currentArrivalBox)}&product_code=eq.${encodeURIComponent(finalProductCode)}`, {
-                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty, barcode: finalBarcode })
                 });
             } else {
+                // Создаем новую запись в ящике с сохранением отсканированного штрихкода
                 await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes`, {
                     method: 'POST', headers: HEADERS, 
-                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso })
+                    body: JSON.stringify({ box_name: currentArrivalBox, product_code: finalProductCode, qty: 1, arrival_date: nowIso, barcode: finalBarcode })
                 });
             }
 
