@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.7.4 - Складський облік</title>
+    <title>SmartBox v4.7.5 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -128,7 +128,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.7.4 (Оновлено: 01.11.2026)</div>
+        <div class="app-version">SmartBox v4.7.5 (Оновлено: 01.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -569,7 +569,7 @@
     let currentScannedMatches = [];
     let currentProductName = '';
     let currentProductCode = '';
-    let currentScannedBarcode = ''; // Запоминаем реально отсканированный штрихкод
+    let currentScannedBarcode = ''; // Реально отсканированный штрихкод для глаз сотрудника
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
@@ -1401,36 +1401,56 @@
         scanInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const code = scanInput.value.trim();
+                const scannedVal = scanInput.value.trim();
                 scanInput.value = '';
-                if (code) processScannedCode(code);
+                if (scannedVal) processScannedCode(scannedVal);
             }
         });
     }
 
-    function processScannedCode(code) {
+    // НОВАЯ ИСПРАВЛЕННАЯ ЛОГИКА ПОИСКА ПО КОДУ ТОВАРУ С СОХРАНЕНИЕМ РЕАЛЬНОГО ШТРИХКОДА
+    function processScannedCode(scannedVal) {
         const resultCard = document.getElementById('productResultCard');
-        const codeLower = code.toLowerCase();
+        const valLower = scannedVal.toLowerCase();
 
-        currentScannedBarcode = code; // Запоминаем то, что реально ввели/отсканировали
+        // 1. Фиксируем для сотрудника именно тот штрихкод/текст, который он отсканировал
+        currentScannedBarcode = scannedVal;
 
-        const prodInfo = globalProducts.find(p => 
-            (p.product_code && p.product_code.toLowerCase() === codeLower) || 
-            (p.barcode && p.barcode.toLowerCase() === codeLower)
+        // 2. Ищем товар в справочнике по штрихкоду (включая альтернативные штрихкоды из таблиц) или по прямому коду товара
+        let foundProduct = globalProducts.find(p => 
+            (p.product_code && p.product_code.toLowerCase() === valLower) || 
+            (p.barcode && p.barcode.toLowerCase() === valLower)
         );
 
-        currentProductCode = prodInfo ? prodInfo.product_code : code;
-        currentProductName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
-        
-        const photoUrl = prodInfo && prodInfo.photo_url ? prodInfo.photo_url : NO_IMAGE_PLACEHOLDER;
+        // Если не нашли напрямую в products, проверим в таблице альтернативных штрихкодов product_barcodes (если она загружена/доступна, или через полный поиск)
+        // Для надежности если в globalProducts нет, ищем по коду товара. Если ввели сразу product_code:
+        if (!foundProduct) {
+            foundProduct = globalProducts.find(p => p.product_code && p.product_code.toLowerCase() === valLower);
+        }
+
+        if (foundProduct) {
+            // Нашли официальный код товара
+            currentProductCode = foundProduct.product_code;
+            currentProductName = foundProduct.product_name || 'Назва не вказана';
+        } else {
+            // Если товара нет в справочнике, используем введенное значение как код (на случай ручного ввода)
+            currentProductCode = scannedVal;
+            currentProductName = 'Невідомий товар';
+        }
+
+        // 3. Подтягиваем фото (если есть у найденного товара)
+        const photoUrl = (foundProduct && foundProduct.photo_url) ? foundProduct.photo_url : NO_IMAGE_PLACEHOLDER;
         document.getElementById('resProductThumb').src = photoUrl;
 
-        const matches = globalStock.filter(item => item.product_code.toLowerCase() === currentProductCode.toLowerCase());
+        // 4. ГЛАВНОЕ: Ищем на складе (inventory_boxes) ВСЕ ящики СТРОГО по найденному CODE ТОВАРУ!
+        const matches = globalStock.filter(item => item.product_code && item.product_code.toLowerCase() === currentProductCode.toLowerCase());
         matches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
+        // 5. Заполняем интерфейс карточки
         document.getElementById('resProductName').innerText = currentProductName;
         document.getElementById('resProductCode').innerText = currentProductCode;
-        document.getElementById('resBarcode').innerText = currentScannedBarcode; // Честно показываем отсканированный штрихкод
+        // Для глаз сотрудника показываем то, что он реально отсканировал (или основной штрихкод товара, если искали по коду)
+        document.getElementById('resBarcode').innerText = currentScannedBarcode;
         
         currentScannedMatches = matches.map(item => ({ ...item, originalQty: parseInt(item.qty, 10) || 0 }));
         resultCard.style.display = 'block';
@@ -1547,7 +1567,7 @@
                         product_code: currentProductCode,
                         product_name: currentProductName,
                         qty_reserved: qtyToReserve,
-                        barcode: currentScannedBarcode // Передаем реально отсканированный штрихкод в корзинку
+                        barcode: currentScannedBarcode // Передаем реально отсканированный сотрудником штрихкод в корзинку
                     })
                 }));
             }
@@ -1618,7 +1638,7 @@
 
             itemsInBox.forEach(item => {
                 const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
-                // Отображаем сохраненный штрихкод из корзины, либо базовый из справочника
+                // Отображаем честно сохраненный штрихкод из корзины (тот, что реально сканировали)
                 const barcodeDisplay = item.barcode || (prod ? (prod.barcode || item.product_code) : item.product_code);
                 const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
