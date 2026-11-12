@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.7.6 - Складський облік</title>
+    <title>SmartBox v4.7.7 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -128,7 +128,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.7.6 (Оновлено: 12.11.2026)</div>
+        <div class="app-version">SmartBox v4.7.7 (Оновлено: 13.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -569,7 +569,7 @@
     let currentScannedMatches = [];
     let currentProductName = '';
     let currentProductCode = '';
-    let currentProductBarcode = ''; // Реальный штрихкод из базы для отображения и корзинки
+    let currentActualBarcode = ''; // СТРОГО тот штрихкод или код, который реально отсканировал или ввел сотрудник!
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
@@ -589,7 +589,7 @@
     function resetInfoSection() {
         currentProductCode = '';
         currentProductName = '';
-        currentProductBarcode = '';
+        currentActualBarcode = '';
         currentScannedMatches = [];
         const resultCard = document.getElementById('productResultCard');
         if (resultCard) resultCard.style.display = 'none';
@@ -1408,44 +1408,44 @@
         });
     }
 
-    // ИСПРАВЛЕННАЯ ЛОГИКА: Сначала поиск по коду товара, если нет - по штрихкоду
+    // СТРОГАЯ ЛОГИКА БЕЗ ПОДМЕН: Сохраняем реально отсканированное сотрудником значение!
     function processScannedCode(scannedVal) {
         const resultCard = document.getElementById('productResultCard');
         const valLower = scannedVal.toLowerCase();
 
-        // 1. Сначала проверяем по точному совпадению с кодом товара (product_code)
+        // 1. Сначала ищем по коду товара (product_code)
         let foundProduct = globalProducts.find(p => p.product_code && p.product_code.toLowerCase() === valLower);
 
-        // 2. Если по коду товара не нашли, проверяем по штрихкоду (barcode)
+        // 2. Если не нашли по коду товара, ищем по штрихкоду (barcode)
         if (!foundProduct) {
             foundProduct = globalProducts.find(p => p.barcode && p.barcode.toLowerCase() === valLower);
         }
 
         if (foundProduct) {
-            // Успешно нашли товар в справочнике
+            // Успешно нашли товар в базе
             currentProductCode = foundProduct.product_code;
             currentProductName = foundProduct.product_name || 'Назва не вказана';
-            currentProductBarcode = foundProduct.barcode || currentProductCode;
         } else {
-            // Если товара совсем нет в базе, используем введенное значение как код
+            // Если товара нет в базе, используем введенное значение
             currentProductCode = scannedVal;
             currentProductName = 'Невідомий товар';
-            currentProductBarcode = scannedVal;
         }
+
+        // ЖЕЛЕЗОБЕТОННОЕ ПРАВИЛО: Для отображения и корзинки фиксируем РОВНО то, что ввел/отсканировал сотрудник! Никаких подмен!
+        currentActualBarcode = scannedVal;
 
         // 3. Подтягиваем фото
         const photoUrl = (foundProduct && foundProduct.photo_url) ? foundProduct.photo_url : NO_IMAGE_PLACEHOLDER;
         document.getElementById('resProductThumb').src = photoUrl;
 
-        // 4. Поиск всех ящиков на складе (inventory_boxes) СТРОГО по коду товара
+        // 4. Ищем ящики на складе СТРОГО по коду товара
         const matches = globalStock.filter(item => item.product_code && item.product_code.toLowerCase() === currentProductCode.toLowerCase());
         matches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
         // 5. Заполняем карточку
         document.getElementById('resProductName').innerText = currentProductName;
         document.getElementById('resProductCode').innerText = currentProductCode;
-        // Для отображения берем реальный штрихкод из базы (никаких подмен введенного)
-        document.getElementById('resBarcode').innerText = currentProductBarcode;
+        document.getElementById('resBarcode').innerText = currentActualBarcode; // Выводим ровно то, что отсканировали
         
         currentScannedMatches = matches.map(item => ({ ...item, originalQty: parseInt(item.qty, 10) || 0 }));
         resultCard.style.display = 'block';
@@ -1562,7 +1562,7 @@
                         product_code: currentProductCode,
                         product_name: currentProductName,
                         qty_reserved: qtyToReserve,
-                        barcode: currentProductBarcode // Передаем корректный штрихкод из базы без подмен
+                        barcode: currentActualBarcode // Передаем в корзинку именно то, что отсканировал сотрудник!
                     })
                 }));
             }
@@ -1633,7 +1633,8 @@
 
             itemsInBox.forEach(item => {
                 const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
-                const barcodeDisplay = item.barcode || (prod ? (prod.barcode || item.product_code) : item.product_code);
+                // В корзинке берем честно сохраненный при добавлении штрихкод (тот, что реально сканировали)
+                const barcodeDisplay = item.barcode || item.product_code;
                 const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
                 const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase());
