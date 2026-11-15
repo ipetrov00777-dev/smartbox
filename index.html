@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.3 - Складський облік (21 століття)</title>
+    <title>SmartBox v4.8.4 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -117,22 +117,22 @@
             <button class="back-btn" onclick="alert('Сесія завершена')">Вихід</button>
         </div>
         <div class="menu-grid">
-            <button class="menu-btn" onclick="openSection('infoSection')">ℹ Інформація</button>
-            <button class="menu-btn" onclick="openSection('podsortSection')">🤖 Підсорт</button>
-            <button class="menu-btn" style="background: #1a2733;" onclick="openSection('warehouseSection')">📦 Склад</button>
-            <button class="menu-btn" onclick="openSection('shelfSection')">⚙️ Норма полиці</button>
-            <button id="menuErrorBtn" class="menu-btn error-btn" onclick="openSection('errorsSection')">
+            <button class="menu-btn" data-target="infoSection">ℹ Інформація</button>
+            <button class="menu-btn" data-target="podsortSection">🤖 Підсорт</button>
+            <button class="menu-btn" style="background: #1a2733;" data-target="warehouseSection">📦 Склад</button>
+            <button class="menu-btn" data-target="shelfSection">⚙️ Норма полиці</button>
+            <button id="menuErrorBtn" class="menu-btn error-btn" data-target="errorsSection">
                 ⚠️ Помилки <span id="menuErrorBadge" class="badge-count" style="display:none;">0</span>
             </button>
-            <button class="menu-btn" onclick="openSection('photoSection')">📷 Фото</button>
-            <button class="menu-btn" onclick="openSection('historySection')">📜 Історія</button>
-            <button class="menu-btn" onclick="openSection('arrivalSection')">📥 Приход</button>
-            <button class="menu-btn db-btn" onclick="openSection('dbSection')">🗄 База даних</button>
-            <button class="menu-btn full-width" onclick="openSection('cartSection')">
+            <button class="menu-btn" data-target="photoSection">📷 Фото</button>
+            <button class="menu-btn" data-target="historySection">📜 Історія</button>
+            <button class="menu-btn" data-target="arrivalSection">📥 Приход</button>
+            <button class="menu-btn db-btn" data-target="dbSection">🗄 База даних</button>
+            <button class="menu-btn full-width" data-target="cartSection">
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.3 (Оновлено: 16.11.2026)</div>
+        <div class="app-version">SmartBox v4.8.4 (Оновлено: 16.11.2026)</div>
     </div>
 
     <!-- 2. ІНФОРМАЦІЯ -->
@@ -343,4 +343,910 @@
                 <label for="photoScanInput">Швидкий пошук / Сканування товару:</label>
                 <input type="text" id="photoScanInput" placeholder="Скануйте штрихкод або код..." autofocus>
             </div>
-            <div 
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <button id="photoFilterBtn" class="edit-toggle-btn" onclick="togglePhotoFilter()">🔍 Тільки без фото</button>
+                <span id="photoCounterText" style="font-size: 12px; color: #888;">Всього товарів: 0</span>
+            </div>
+        </div>
+        <div id="photoEditorCard" class="card" style="display: none; border: 2px solid #1a73e8;">
+            <div class="cart-header-flex">
+                <h3>Редагування фото товару</h3>
+                <button class="back-btn" onclick="closePhotoEditor()" style="padding: 2px 8px; font-size: 11px;">✕ Закрити</button>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; margin-top: 10px;">
+                <img id="editProductThumb" src="" style="width: 80px; height: 80px; object-fit: contain; background: #ffffff; border-radius: 6px; border: 1px solid #555;" alt="Фото">
+                <div style="flex: 1; min-width: 0;">
+                    <b id="editProductCode" style="color: #64b5f6; font-size: 13px;">---</b>
+                    <div id="editProductName" style="font-size: 13px; color: #fff; margin: 4px 0;">---</div>
+                    <div id="editProductBarcode" style="font-size: 11px; color: #888;">Штрихкод: ---</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px;">
+                <input type="file" id="productImageFile" accept="image/*" style="display: none;" onchange="uploadProductPhoto(this)">
+                <button class="global-cart-btn" style="background: #1a73e8; margin-top: 0;" onclick="document.getElementById('productImageFile').click()">📷 Завантажити / Змінити фото</button>
+            </div>
+        </div>
+        <div class="card">
+            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 8px;">Каталог товарів</h3>
+            <div id="photoCatalogContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- 11. БАЗА ДАНИХ -->
+    <div id="dbSection" class="screen">
+        <div class="header-bar">
+            <h2>🗄 База даних товарів</h2>
+            <button class="back-btn" onclick="goToMenu()">Назад</button>
+        </div>
+        <div class="card">
+            <button class="global-cart-btn" style="background: #ff9800; color: #000; margin-top: 0; margin-bottom: 10px;" onclick="openAddNewProductModal()">+ Додати новий товар</button>
+            <div class="form-group" style="margin-bottom: 0;">
+                <input type="text" id="dbSearchInput" placeholder="🔍 Пошук по коду, штрихкоду чи назві..." oninput="renderDbProductList()">
+            </div>
+        </div>
+        <div id="dbEditorCard" class="card" style="display: none; border: 2px solid #ff9800; background: #1a1a1a;">
+            <div class="cart-header-flex">
+                <h3 style="color: #ff9800;">✎ Редагування картки товару</h3>
+                <button class="back-btn" onclick="closeDbEditor()">✕ Закрити</button>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 10px; align-items: flex-start;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <img id="dbEditThumb" src="" style="width: 85px; height: 85px; object-fit: contain; background: #ffffff; border-radius: 6px; border: 1px solid #555; cursor: pointer;" onclick="openImageModal(this.src)">
+                    <input type="file" id="dbProductImageFile" accept="image/*" style="display: none;" onchange="uploadDbProductPhoto(this)">
+                    <button class="edit-toggle-btn" style="font-size: 11px; padding: 4px 6px;" onclick="document.getElementById('dbProductImageFile').click()">📷 Змінити фото</button>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 11px; color: #aaa;">Код товару (product_code):</label>
+                        <input type="text" id="dbEditCode" style="background: #2b2b2b; color: #64b5f6; font-weight: bold; padding: 6px;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 11px; color: #aaa;">Штрихкод:</label>
+                        <input type="text" id="dbEditBarcode" style="padding: 6px;">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 8px; margin-bottom: 8px;">
+                <label style="font-size: 11px; color: #aaa;">Назва товару:</label>
+                <textarea id="dbEditName" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box; border: 2px solid #1a73e8; border-radius: 6px; font-size: 16px; outline: none; background: #2b2b2b; color: #fff; resize: vertical; font-family: Arial, sans-serif;"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label style="font-size: 11px; color: #aaa;">Норма на полке (шт.):</label>
+                <input type="number" id="dbEditShelfCapacity" min="0" style="padding: 8px; text-align: center; font-weight: bold; color: #81c784;">
+            </div>
+            <button class="global-cart-btn" style="background: #28a745; margin-top: 0; margin-bottom: 8px;" onclick="saveDbProductChanges()">💾 Зберегти зміни</button>
+            <button class="global-cart-btn" style="background: #dc3545; margin-top: 0; font-size: 13px;" onclick="deleteDbProduct()">🗑 Видалити товар із бази</button>
+        </div>
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="font-size: 14px; margin: 0;">Справочник товарів</h3>
+                <span id="dbCounterText" style="font-size: 11px; color: #888;">Всього: 0</span>
+            </div>
+            <div id="dbCatalogContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- МОДАЛКИ -->
+<div id="addNewProductModal" class="modal-overlay" onclick="closeAddNewProductModal()">
+    <div class="info-modal-content" onclick="event.stopPropagation()" style="border-color: #ff9800;">
+        <h3 style="color: #ff9800; margin-top: 0;">+ Додати новий товар</h3>
+        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px; background: #121212; padding: 8px; border-radius: 6px;">
+            <img id="newProdThumbPreview" src="https://via.placeholder.com/80?text=Photo" style="width: 60px; height: 60px; object-fit: contain; background: #fff; border-radius: 4px;" alt="Фото">
+            <div>
+                <input type="file" id="newProdFileInput" accept="image/*" style="display: none;" onchange="previewNewProductImage(this)">
+                <button class="edit-toggle-btn" style="font-size: 12px;" onclick="document.getElementById('newProdFileInput').click()">📷 Вибрати фото</button>
+            </div>
+        </div>
+        <div class="form-group"><label style="font-size: 12px;">Код товару *:</label><input type="text" id="newProdCodeInput"></div>
+        <div class="form-group"><label style="font-size: 12px;">Штрихкод:</label><input type="text" id="newProdBarcodeInput"></div>
+        <div class="form-group"><label style="font-size: 12px;">Назва товару:</label><input type="text" id="newProdNameInput"></div>
+        <div class="form-group"><label style="font-size: 12px;">Норма на полке:</label><input type="number" id="newProdShelfInput" min="0" value="0"></div>
+        <div style="display: flex; gap: 8px; margin-top: 15px;">
+            <button class="back-btn" style="flex: 1;" onclick="closeAddNewProductModal()">Скасувати</button>
+            <button class="global-cart-btn" style="flex: 2; margin-top: 0; background: #ff9800; color: #000;" onclick="submitNewProduct()">Створити</button>
+        </div>
+    </div>
+</div>
+
+<div id="imageModal" class="modal-overlay" onclick="closeImageModal()">
+    <span class="modal-close-btn">&times;</span>
+    <img id="modalImg" class="modal-img" src="" alt="Фото">
+</div>
+
+<div id="infoModal" class="modal-overlay" onclick="closeInfoModal()">
+    <div class="info-modal-content" onclick="event.stopPropagation()">
+        <h3>ℹ️ Інформація про залишок в ящику</h3>
+        <p>Цей залишок показує кількість товару, яка залишиться в ящику безпосередньо після того, як ви візьмете необхідну кількість для винесення в зал.</p>
+        <button class="global-cart-btn" style="background: #1a73e8; margin-top: 5px;" onclick="closeInfoModal()">Зрозуміло</button>
+    </div>
+</div>
+
+<div id="mixedDatesModal" class="modal-overlay" onclick="closeMixedDatesModal()">
+    <div class="info-modal-content" onclick="event.stopPropagation()">
+        <h3>⚠️ Увага: Мікс дат у ящику!</h3>
+        <p>У цьому ящику товари з різними датами приходу. Будь ласка, оберіть найстарішу партію (FIFO).</p>
+        <div id="mixedDatesListContainer" class="modal-batch-list"></div>
+        <button class="global-cart-btn" style="background: #1a73e8; margin-top: 5px;" onclick="closeMixedDatesModal()">Зрозуміло</button>
+    </div>
+</div>
+
+<script>
+    const SUPABASE_URL = "https://hjsdayynmmzajerjgqrb.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2RheXlubW16YWplcmpncXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY4MTEsImV4cCI6MjEwMTkzMjgxMX0.4lMQf7lpymLCEAA4OJCUwGUda1nKfoxduADDbaWGo0w";
+
+    const HEADERS = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+    };
+
+    const NO_IMAGE_PLACEHOLDER = "https://via.placeholder.com/100?text=No+Photo";
+
+    let activeOrderId = null;
+    let dbCartItems = [];
+    let globalStock = [];
+    let globalBatches = [];
+    let globalProducts = [];
+    let globalPlanograms = [];
+    let googleStockData = [];
+    let lastSyncTime = null;
+
+    let currentScannedMatches = [];
+    let currentProductName = '';
+    let currentProductCode = '';
+    let currentActualBarcode = '';
+
+    let currentArrivalBox = '';
+    let sessionArrivalItems = [];
+    let isCartEditMode = false;
+
+    let photoOnlyWithoutPhoto = localStorage.getItem('photoOnlyWithoutPhoto') === 'true';
+    let currentEditingProduct = null;
+    let currentDbEditingProduct = null;
+
+    async function initSystem() {
+        try {
+            await ensureActiveOrder();
+            await loadAllData();
+            updateCartBadge();
+            checkSystemErrors();
+        } catch(e) {
+            console.error("Init error:", e);
+        }
+    }
+
+    function resetInfoSection() {
+        currentProductCode = '';
+        currentProductName = '';
+        currentActualBarcode = '';
+        currentScannedMatches = [];
+        const resultCard = document.getElementById('productResultCard');
+        if (resultCard) resultCard.style.display = 'none';
+        const scanInput = document.getElementById('scanInput');
+        if (scanInput) scanInput.value = '';
+        const tbody = document.getElementById('resLocationsBody');
+        if (tbody) tbody.innerHTML = '';
+        const totalStock = document.getElementById('resTotalStock');
+        if (totalStock) totalStock.innerText = '0 шт.';
+        const totalQty = document.getElementById('resTotalQty');
+        if (totalQty) totalQty.innerText = '0 шт.';
+    }
+
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        const target = document.getElementById(screenId);
+        if (target) target.classList.add('active');
+        window.scrollTo(0, 0);
+        
+        if (screenId === 'infoSection') {
+            resetInfoSection();
+            loadAllData();
+            setTimeout(() => document.getElementById('scanInput')?.focus(), 100);
+        }
+        if (screenId === 'warehouseSection') {
+            loadAllData().then(() => renderWarehouseScreen());
+        }
+        if (screenId === 'podsortSection') {
+            loadAllData().then(() => renderPodsort());
+        }
+        if (screenId === 'errorsSection') {
+            renderInteractiveErrorsDashboard();
+        }
+        if (screenId === 'cartSection') {
+            isCartEditMode = false;
+            renderCart();
+        }
+        if (screenId === 'historySection') loadHistory();
+        if (screenId === 'arrivalSection') {
+            loadAllData();
+            currentArrivalBox = '';
+            sessionArrivalItems = [];
+            document.getElementById('arrivalBoxInput').value = '';
+            document.getElementById('arrivalScanInput').value = '';
+            document.getElementById('arrivalScanInput').setAttribute('disabled', 'true');
+            document.getElementById('arrivalBoxNameDisplay').innerText = '—';
+            document.getElementById('arrivalCountDisplay').innerText = '0';
+            renderArrivalTable();
+            setTimeout(() => document.getElementById('arrivalBoxInput')?.focus(), 100);
+        }
+        if (screenId === 'shelfSection') {
+            loadAllData();
+            document.getElementById('shelfResultCard').style.display = 'none';
+            document.getElementById('shelfScanInput').value = '';
+            setTimeout(() => document.getElementById('shelfScanInput')?.focus(), 100);
+        }
+        if (screenId === 'photoSection') {
+            loadAllData().then(() => renderPhotoCatalog());
+            document.getElementById('photoEditorCard').style.display = 'none';
+            document.getElementById('photoScanInput').value = '';
+            updatePhotoFilterButtonUI();
+            setTimeout(() => document.getElementById('photoScanInput')?.focus(), 100);
+        }
+        if (screenId === 'dbSection') {
+            loadAllData().then(() => renderDbProductList());
+            if (!currentDbEditingProduct) {
+                document.getElementById('dbEditorCard').style.display = 'none';
+            }
+            document.getElementById('dbSearchInput').value = '';
+        }
+    }
+
+    function goToMenu() { 
+        resetInfoSection();
+        showScreen('menuScreen'); 
+    }
+    
+    function openSection(sectionId) { 
+        showScreen(sectionId); 
+    }
+
+    async function ensureActiveOrder() {
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/orders?status=eq.draft&select=*&limit=1`, { headers: HEADERS });
+            const orders = await res.json();
+            if (orders && orders.length > 0) {
+                activeOrderId = orders[0].id;
+            } else {
+                const newOrderRes = await fetch(`${SUPABASE_URL}/rest/v1/orders`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({ order_number: 'ORD-' + Math.floor(1000 + Math.random() * 9000), status: 'draft' })
+                });
+                const newOrders = await newOrderRes.json();
+                if (newOrders && newOrders.length > 0) activeOrderId = newOrders[0].id;
+            }
+        } catch (e) { console.error("Помилка замовлення:", e); }
+    }
+
+    async function loadAllData() {
+        try {
+            const [stockRes, batchesRes, prodRes, rawProductsRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/box_batches?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/products?select=product_code,photo_url,barcode,product_name`, { headers: HEADERS }),
+                activeOrderId ? fetch(`${SUPABASE_URL}/rest/v1/order_items?order_id=eq.${activeOrderId}&select=*`, { headers: HEADERS }) : Promise.resolve({ ok: false }),
+                fetch(`${SUPABASE_URL}/rest/v1/planograms?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/google_stock?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/system_settings?key=eq.last_google_sync&select=*`, { headers: HEADERS })
+            ]);
+            
+            if (stockRes.ok) globalStock = await stockRes.json();
+            if (batchesRes.ok) globalBatches = await batchesRes.json();
+            
+            if (prodRes.ok) {
+                globalProducts = await prodRes.json();
+                if (rawProductsRes.ok) {
+                    const rawProducts = await rawProductsRes.json();
+                    const extraMap = {};
+                    rawProducts.forEach(p => {
+                        if (p.product_code) {
+                            extraMap[p.product_code.toLowerCase()] = {
+                                photo_url: p.photo_url || null,
+                                barcode: p.barcode || null,
+                                product_name: p.product_name || null
+                            };
+                        }
+                    });
+                    globalProducts = globalProducts.map(p => {
+                        const code = p.product_code ? p.product_code.toLowerCase() : '';
+                        const extra = extraMap[code] || {};
+                        return {
+                            ...p,
+                            product_name: p.product_name || extra.product_name || 'Назва не вказана',
+                            photo_url: p.photo_url || extra.photo_url || null,
+                            barcode: p.barcode || extra.barcode || null
+                        };
+                    });
+                }
+            }
+
+            if (cartRes.ok) dbCartItems = await cartRes.json();
+            if (planoRes.ok) globalPlanograms = await planoRes.json();
+            if (gStockRes.ok) googleStockData = await gStockRes.json();
+            
+            if (settingsRes.ok) {
+                const settings = await settingsRes.json();
+                if (settings && settings.length > 0) lastSyncTime = settings[0].value;
+            }
+
+            updateCartBadge();
+            checkSystemErrors();
+            updateSyncStamps();
+        } catch (e) { console.error("Помилка завантаження даних:", e); }
+    }
+
+    function updateSyncStamps() {
+        let stampText = "Синхронізація: —";
+        if (lastSyncTime) {
+            const d = new Date(lastSyncTime);
+            stampText = `Синхронізація Google: ${d.toLocaleDateString('uk-UA')} ${d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
+        }
+        const whElem = document.getElementById('whSyncStamp');
+        if (whElem) whElem.innerText = stampText;
+        const psElem = document.getElementById('podsortSyncStamp');
+        if (psElem) psElem.innerText = stampText;
+    }
+
+    async function checkSystemErrors() {
+        try {
+            const [resBoxes, resPlusMinus, resNoZag, resDbQ] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_box_vs_batches?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_plus_minus?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_no_zag?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_db_question?select=*`, { headers: HEADERS })
+            ]);
+
+            window._errorData = {
+                boxVsBatches: resBoxes.ok ? await resBoxes.json() : [],
+                plusMinus: resPlusMinus.ok ? await resPlusMinus.json() : [],
+                noZag: resNoZag.ok ? await resNoZag.json() : [],
+                dbQuestion: resDbQ.ok ? await resDbQ.json() : []
+            };
+
+            const total = window._errorData.boxVsBatches.length + 
+                          window._errorData.plusMinus.length + 
+                          window._errorData.noZag.length + 
+                          window._errorData.dbQuestion.length;
+
+            updateMenuErrorButtonUI(total);
+            return total;
+        } catch (err) {
+            console.error("Помилка при перевірці помилок:", err);
+            return 0;
+        }
+    }
+
+    function updateMenuErrorButtonUI(total) {
+        const btn = document.getElementById('menuErrorBtn');
+        const badge = document.getElementById('menuErrorBadge');
+        if (!btn || !badge) return;
+
+        if (total > 0) {
+            btn.classList.add('has-errors');
+            badge.style.display = 'inline-block';
+            badge.innerText = total;
+        } else {
+            btn.classList.remove('has-errors');
+            badge.style.display = 'none';
+            badge.innerText = '0';
+        }
+    }
+
+    async function renderInteractiveErrorsDashboard() {
+        const container = document.getElementById('errorsDashboardContainer');
+        if (!container) return;
+        container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Завантаження деталей...</div>';
+
+        await checkSystemErrors();
+        const errs = window._errorData || { boxVsBatches: [], plusMinus: [], noZag: [], dbQuestion: [] };
+
+        const total = errs.boxVsBatches.length + errs.plusMinus.length + errs.noZag.length + errs.dbQuestion.length;
+
+        container.innerHTML = `
+            <div style="font-size: 13px; color: #cbd5e1; margin-bottom: 6px;">
+                Статус системи: <b>${total === 0 ? '🟢 Усі дані узгоджені, помилок немає' : `🔴 Виявлено проблемних позицій: ${total}`}</b>
+            </div>
+            <div class="error-dashboard-card" style="border-left: 4px solid #ef4444;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc1')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🔴 Рассинхронизация остатка и партий</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">inventory_boxes ⚡ box_batches</div>
+                    </div>
+                    <span class="total-badge" style="background: #ef4444; color: #fff;">${errs.boxVsBatches.length} поз.</span>
+                </div>
+                <div id="acc1" class="error-dashboard-body">
+                    ${renderErrorItemsList(errs.boxVsBatches, 'boxVsBatches')}
+                </div>
+            </div>
+            <div class="error-dashboard-card" style="border-left: 4px solid #eab308;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc2')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🟡 Розбіжність з 1С (Склад > 1С)</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">inventory_boxes ⚡ google_stock</div>
+                    </div>
+                    <span class="total-badge" style="background: #eab308; color: #000;">${errs.plusMinus.length} поз.</span>
+                </div>
+                <div id="acc2" class="error-dashboard-body">
+                    ${renderErrorItemsList(errs.plusMinus, 'plusMinus')}
+                </div>
+            </div>
+            <div class="error-dashboard-card" style="border-left: 4px solid #f97316;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc3')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🟠 Відсутній облік 1С (Заг. = ?)</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">inventory_boxes ⚡ google_stock</div>
+                    </div>
+                    <span class="total-badge" style="background: #f97316; color: #fff;">${errs.noZag.length} поз.</span>
+                </div>
+                <div id="acc3" class="error-dashboard-body">
+                    ${renderErrorItemsList(errs.noZag, 'noZag')}
+                </div>
+            </div>
+            <div class="error-dashboard-card" style="border-left: 4px solid #3b82f6;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc4')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🔵 Товары-заглушки (БД_?)</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">products (БД_?)</div>
+                    </div>
+                    <span class="total-badge" style="background: #3b82f6; color: #fff;">${errs.dbQuestion.length} поз.</span>
+                </div>
+                <div id="acc4" class="error-dashboard-body">
+                    ${renderErrorItemsList(errs.dbQuestion, 'dbQuestion')}
+                </div>
+            </div>
+        `;
+    }
+
+    function toggleErrorAccordion(id) {
+        const body = document.getElementById(id);
+        if (body) body.classList.toggle('active');
+    }
+
+    function renderErrorItemsList(items, type) {
+        if (!items || items.length === 0) {
+            return '<div style="color: #28a745; font-size: 12px; padding: 6px 0;">✓ Немає проблемних позицій у цій категорії</div>';
+        }
+        let html = '';
+        items.forEach(item => {
+            const code = item.product_code || item.box_name || '---';
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const prodName = prod ? prod.product_name : (item.product_name || 'Назва не вказана');
+            html += `
+                <div style="background: #121212; padding: 8px; border-radius: 6px; margin-bottom: 6px; border: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 13px; font-weight: bold; color: #64b5f6;">${code} - ${prodName}</div>
+                    </div>
+                    <button class="edit-toggle-btn" style="padding: 4px 8px; font-size: 11px;" onclick="jumpToDbEdit('${code}')">✎ Дія</button>
+                </div>
+            `;
+        });
+        return html;
+    }
+
+    function jumpToDbEdit(code) {
+        showScreen('dbSection');
+        setTimeout(() => selectDbProductForEdit(code), 150);
+    }
+
+    function renderWarehouseScreen() {
+        const tbody = document.getElementById('warehouseTableBody');
+        const headerTh = document.getElementById('whBoxesHeader');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        const grandTotalBoxesQty = globalStock.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
+        if (headerTh) {
+            headerTh.innerHTML = `Ящики та залишки<br><small style="color: #64b5f6; font-weight: normal;">Всього на складі: <b>${grandTotalBoxesQty} шт.</b></small>`;
+        }
+        const groupedWarehouse = {};
+        globalStock.forEach(item => {
+            const code = item.product_code;
+            if (!groupedWarehouse[code]) groupedWarehouse[code] = [];
+            groupedWarehouse[code].push(item);
+        });
+        const codes = Object.keys(groupedWarehouse);
+        if (codes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #777;">На складі немає товарів у ящиках</td></tr>';
+            return;
+        }
+        codes.forEach(code => {
+            const items = groupedWarehouse[code];
+            items.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const prodName = prod ? prod.product_name : 'Назва не вказана';
+            const firstBoxWithBarcode = items.find(i => i.barcode);
+            const barcodeVal = firstBoxWithBarcode ? firstBoxWithBarcode.barcode : (prod && prod.barcode ? prod.barcode : code);
+            const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+
+            let boxesHtml = '';
+            items.forEach(b => {
+                const boxBatches = globalBatches.filter(bt => bt.box_name === b.box_name && bt.product_code.toLowerCase() === code.toLowerCase());
+                boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
+                let dateDisplayStr = '—';
+                if (boxBatches.length > 0) {
+                    const oldest = new Date(boxBatches[0].arrival_date).toLocaleDateString('uk-UA');
+                    if (boxBatches.length > 1) {
+                        const formattedBatches = boxBatches.map(bt => ({ date: new Date(bt.arrival_date).toLocaleDateString('uk-UA'), qty: bt.qty }));
+                        dateDisplayStr = `<span onclick="openMixedDatesModal('${encodeURIComponent(JSON.stringify(formattedBatches))}')" style="color: #ffc107; cursor: pointer; font-weight: bold; text-decoration: underline;">Мікс дат ⚠️</span>`;
+                    } else {
+                        dateDisplayStr = oldest;
+                    }
+                }
+                boxesHtml += `📦 <b>${b.box_name}</b> = ${b.qty} шт. <small style="color:#aaa">(${dateDisplayStr})</small><br>`;
+            });
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <div style="display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px;">
+                        <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото" style="width: 50px; height: 50px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid #444; cursor: pointer; flex-shrink: 0;">
+                        <div style="min-width: 0; flex: 1;">
+                            <div style="font-size: 13px; font-weight: bold; color: #64b5f6;">${code}</div>
+                            <div style="font-size: 11px; color: #28a745; font-weight: bold;">Шк: ${barcodeVal}</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #fff; margin-bottom: 6px;">${prodName}</div>
+                </td>
+                <td><div style="font-size: 12px; line-height: 1.4;">${boxesHtml}</div></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderPodsort() {
+        const container = document.getElementById('podsortCardsContainer');
+        const progressHeader = document.getElementById('podsortHeaderProgress');
+        if (!container) return;
+        container.innerHTML = '';
+        if (!globalPlanograms || globalPlanograms.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Немає налаштованих норм</div>';
+            if (progressHeader) progressHeader.innerText = `Загальна к-сть на винос: 0 шт.`;
+            return;
+        }
+        const reservedProductCodesInCart = dbCartItems.map(c => c.product_code?.toLowerCase());
+        let rowsData = [];
+        globalPlanograms.forEach(plano => {
+            const code = plano.product_code;
+            const codeLower = code?.toLowerCase();
+            const gItem = googleStockData.find(g => g.product_code?.toLowerCase() === codeLower);
+            if (!gItem || gItem.stock === undefined || gItem.stock === null) return;
+            if (reservedProductCodesInCart.includes(codeLower)) return;
+            const norm = parseInt(plano.shelf_capacity, 10) || 0;
+            if (norm <= 0) return;
+            const stockMatches = globalStock.filter(s => s.product_code?.toLowerCase() === codeLower);
+            stockMatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+            const totalSkl = stockMatches.reduce((sum, s) => sum + (parseInt(s.qty, 10) || 0), 0);
+            if (totalSkl <= 0) return;
+            const totalZag = parseInt(gItem.stock, 10) || 0;
+            const currentTZ = totalZag - totalSkl;
+            const deficit = norm - currentTZ;
+            if (deficit <= 0) return;
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === codeLower);
+            const prodName = (prod ? prod.product_name : 'Назва не вказана').replace(/'/g, "&#39;");
+            const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+            let allocatedForThisProduct = 0;
+            stockMatches.forEach(box => {
+                const boxQty = parseInt(box.qty, 10) || 0;
+                if (allocatedForThisProduct < deficit && boxQty > 0) {
+                    const needed = deficit - allocatedForThisProduct;
+                    const take = Math.min(boxQty, needed);
+                    allocatedForThisProduct += take;
+                    const barcodeDisplay = (box.barcode || (prod ? (prod.barcode || code) : code)).replace(/'/g, "&#39;");
+                    const boxBatches = globalBatches.filter(bt => bt.box_name === box.box_name && bt.product_code.toLowerCase() === codeLower);
+                    boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
+                    let dStr = box.arrival_date ? new Date(box.arrival_date).toLocaleDateString('uk-UA') : '—';
+                    let hasMixed = false;
+                    let formattedBatches = [];
+                    if (boxBatches.length > 0) {
+                        dStr = new Date(boxBatches[0].arrival_date).toLocaleDateString('uk-UA');
+                        if (boxBatches.length > 1) {
+                            hasMixed = true;
+                            formattedBatches = boxBatches.map(bt => ({ date: new Date(bt.arrival_date).toLocaleDateString('uk-UA'), qty: bt.qty }));
+                        }
+                    }
+                    rowsData.push({
+                        code: code, prodName: prodName, barcode: barcodeDisplay, photoUrl: photoUrl,
+                        norm: norm, currentTZ: currentTZ, boxName: box.box_name, boxQty: boxQty - take,
+                        takeQty: take, arrivalDate: dStr, hasMixed: hasMixed, mixedBatches: formattedBatches
+                    });
+                }
+            });
+        });
+        const totalActiveDeficit = rowsData.reduce((sum, row) => sum + row.takeQty, 0);
+        if (progressHeader) progressHeader.innerText = `Загальна к-сть на винос: ${totalActiveDeficit} шт.`;
+        if (rowsData.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Підсорт не потрібен.</div>';
+            return;
+        }
+        const groupedByBox = {};
+        rowsData.forEach(row => {
+            if (!groupedByBox[row.boxName]) groupedByBox[row.boxName] = [];
+            groupedByBox[row.boxName].push(row);
+        });
+        const sortedBoxNames = Object.keys(groupedByBox).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        sortedBoxNames.forEach(boxName => {
+            const itemsInBox = groupedByBox[boxName];
+            const boxGroupContainer = document.createElement('div');
+            boxGroupContainer.className = 'box-group-container';
+            const boxHeader = document.createElement('div');
+            boxHeader.className = 'box-group-header';
+            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${itemsInBox.length} поз.</span>`;
+            boxGroupContainer.appendChild(boxHeader);
+            itemsInBox.forEach(row => {
+                const itemCard = document.createElement('div');
+                itemCard.className = 'item-card';
+                let dateHtml = `прихід: ${row.arrivalDate}`;
+                if (row.hasMixed) {
+                    dateHtml = `прихід: <span onclick="openMixedDatesModal('${encodeURIComponent(JSON.stringify(row.mixedBatches))}')" style="color: #ffc107; cursor: pointer; font-weight: bold; text-decoration: underline;">Мікс дат ⚠️</span>`;
+                }
+                itemCard.innerHTML = `
+                    <div class="card-left-flex">
+                        <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Товар">
+                        <div class="card-details">
+                            <div class="barcode-title">${row.barcode} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
+                            <div style="font-size: 11px; color: #888; margin-bottom: 2px;">${dateHtml}</div>
+                            <div class="prod-name-sub">${row.prodName}</div>
+                            <div style="font-size: 11px; color: #64b5f6; margin-top: 3px;">
+                                Норма: <b>${row.norm} шт.</b> | В ящику: <b>${row.boxQty} шт.*</b>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-right-action">
+                        <button class="pick-row-btn" onclick="executePodsortPick('${row.boxName}', '${row.code}', ${row.takeQty}, '${row.prodName}', '${row.barcode}')">✓</button>
+                    </div>
+                `;
+                boxGroupContainer.appendChild(itemCard);
+            });
+            container.appendChild(boxGroupContainer);
+        });
+    }
+
+    function openMixedDatesModal(batchesJsonStr) {
+        try {
+            const rawBatches = JSON.parse(decodeURIComponent(batchesJsonStr));
+            const aggregatedMap = {};
+            rawBatches.forEach(b => {
+                if (!aggregatedMap[b.date]) aggregatedMap[b.date] = 0;
+                aggregatedMap[b.date] += parseInt(b.qty, 10) || 0;
+            });
+            const listContainer = document.getElementById('mixedDatesListContainer');
+            listContainer.innerHTML = '';
+            Object.keys(aggregatedMap).forEach(dateStr => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'modal-batch-item';
+                itemDiv.innerHTML = `<span>📅 ${dateStr}</span> <b>${aggregatedMap[dateStr]} шт.</b>`;
+                listContainer.appendChild(itemDiv);
+            });
+        } catch(e) { console.error(e); }
+        document.getElementById('mixedDatesModal').classList.add('active');
+    }
+
+    function closeMixedDatesModal() { document.getElementById('mixedDatesModal').classList.remove('active'); }
+
+    // ЕДИНАЯ ФУНКЦИЯ FIFO-СПИСАНИЯ ДЛЯ КОРЗИНКИ И ПОДСОРТА
+    async function executeUnifiedFifoPick(boxName, productCode, qtyToPick, productName, productBarcode) {
+        const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
+        boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+
+        let remainingToTake = qtyToPick;
+        for (const batch of boxBatches) {
+            if (remainingToTake <= 0) break;
+            const takeFromBatch = Math.min(batch.qty, remainingToTake);
+            const newBatchQty = batch.qty - takeFromBatch;
+            remainingToTake -= takeFromBatch;
+
+            if (newBatchQty === 0) {
+                await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, { method: 'DELETE', headers: HEADERS });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, {
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newBatchQty })
+                });
+            }
+        }
+
+        const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
+        const boxData = await resBox.json();
+        
+        if (boxData && boxData.length > 0) {
+            let targetBoxRow = boxData.find(b => b.barcode === productBarcode) || boxData[0];
+            const newQty = Math.max(0, (parseInt(targetBoxRow.qty, 10) || 0) - qtyToPick);
+
+            if (newQty === 0) {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetBoxRow.id}`, { method: 'DELETE', headers: HEADERS });
+            } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetBoxRow.id}`, {
+                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
+                });
+            }
+        }
+
+        await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
+            method: 'POST', headers: HEADERS,
+            body: JSON.stringify({ box_name: boxName, product_code: productCode, product_name: productName, qty_moved: qtyToPick })
+        });
+    }
+
+    async function executePodsortPick(boxName, productCode, qtyToPick, productName, productBarcode) {
+        const confirmMsg = `Ви точно взяли товар?\nШтрихкод: ${productBarcode}\nЯщик: ${boxName}\nКількість: ${qtyToPick} шт.`;
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            await executeUnifiedFifoPick(boxName, productCode, qtyToPick, productName, productBarcode);
+            await loadAllData();
+            renderPodsort();
+            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName} на виніс у зал!`);
+        } catch (e) { 
+            console.error(e);
+            alert("Помилка списання: " + e.message);
+        }
+    }
+
+    async function pickCartItem(itemId, boxName, productCode, qtyToPick, productBarcode) {
+        const confirmMsg = `Списати ${qtyToPick} шт. із ${boxName}?`;
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const itemObj = dbCartItems.find(i => i.id === itemId);
+            const prodName = itemObj ? itemObj.product_name : '';
+            
+            await executeUnifiedFifoPick(boxName, productCode, qtyToPick, prodName, productBarcode);
+            await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, { method: 'DELETE', headers: HEADERS });
+
+            await loadAllData();
+            renderCart();
+            alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}!`);
+        } catch (e) { 
+            console.error(e);
+            alert("Помилка списання: " + e.message);
+        }
+    }
+
+    const scanInput = document.getElementById('scanInput');
+    if (scanInput) {
+        scanInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = scanInput.value.trim();
+                scanInput.value = '';
+                if (val) processScannedCode(val);
+            }
+        });
+    }
+
+    function processScannedCode(scannedVal) {
+        const resultCard = document.getElementById('productResultCard');
+        const valLower = scannedVal.toLowerCase();
+        let foundProduct = globalProducts.find(p => p.product_code?.toLowerCase() === valLower || p.barcode?.toLowerCase() === valLower);
+        currentProductCode = foundProduct ? foundProduct.product_code : scannedVal;
+        currentProductName = foundProduct ? (foundProduct.product_name || 'Назва не вказана') : 'Невідомий товар';
+        currentActualBarcode = scannedVal;
+
+        const photoUrl = (foundProduct && foundProduct.photo_url) ? foundProduct.photo_url : NO_IMAGE_PLACEHOLDER;
+        document.getElementById('resProductThumb').src = photoUrl;
+
+        const matches = globalStock.filter(item => item.product_code?.toLowerCase() === currentProductCode.toLowerCase());
+        matches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
+
+        document.getElementById('resProductName').innerText = currentProductName;
+        document.getElementById('resProductCode').innerText = currentProductCode;
+        document.getElementById('resBarcode').innerText = currentActualBarcode;
+        
+        currentScannedMatches = matches.map(item => ({ ...item, originalQty: parseInt(item.qty, 10) || 0 }));
+        resultCard.style.display = 'block';
+        renderLocationsTable();
+    }
+
+    function renderLocationsTable() {
+        const tbody = document.getElementById('resLocationsBody');
+        tbody.innerHTML = '';
+        if (currentScannedMatches.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ff6b6b;">Товар не знайдено на складі!</td></tr>`;
+            return;
+        }
+        currentScannedMatches.forEach((item, idx) => {
+            const inputId = `qtyInput_${idx}`;
+            const cartItems = dbCartItems.filter(c => c.box_name === item.box_name && c.product_code.toLowerCase() === currentProductCode.toLowerCase());
+            const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
+            const availableForInput = item.originalQty - inCartQty;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${item.box_name}</b></td>
+                <td><small>${item.arrival_date ? new Date(item.arrival_date).toLocaleDateString('uk-UA') : '—'}</small></td>
+                <td><span class="total-badge" id="availBadge_${idx}">${item.originalQty} шт.</span></td>
+                <td><input type="number" id="${inputId}" class="qty-input-table" value="0" min="0" max="${availableForInput}"></td>
+            `;
+            tbody.appendChild(tr);
+        });
+        document.getElementById('globalCartBtn').removeAttribute('disabled');
+    }
+
+    async function addAllToCart() {
+        if (!activeOrderId) await ensureActiveOrder();
+        const requests = [];
+        currentScannedMatches.forEach((item, idx) => {
+            const qty = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
+            if (qty > 0) {
+                requests.push(fetch(`${SUPABASE_URL}/rest/v1/order_items`, {
+                    method: 'POST', headers: HEADERS,
+                    body: JSON.stringify({ order_id: activeOrderId, box_name: item.box_name, product_code: currentProductCode, product_name: currentProductName, qty_reserved: qty, barcode: item.barcode || currentActualBarcode })
+                }));
+            }
+        });
+        if (requests.length > 0) {
+            await Promise.all(requests);
+            await loadAllData();
+            alert("Товари додано в корзинку!");
+        }
+    }
+
+    function updateCartBadge() {
+        const total = dbCartItems.reduce((sum, i) => sum + (parseInt(i.qty_reserved, 10) || 0), 0);
+        document.getElementById('cartBadge').innerText = total;
+    }
+
+    function toggleCartEditMode() {
+        isCartEditMode = !isCartEditMode;
+        renderCart();
+    }
+
+    async function renderCart() {
+        await loadAllData();
+        const container = document.getElementById('cartCardsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        if (dbCartItems.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Корзинка порожня</div>';
+            return;
+        }
+        dbCartItems.forEach(item => {
+            const safeBarcode = (item.barcode || '').replace(/'/g, "&#39;");
+            const card = document.createElement('div');
+            card.className = 'item-card';
+            card.innerHTML = `
+                <div class="card-left-flex">
+                    <div class="card-details">
+                        <div class="barcode-title">${item.product_code} = (${item.qty_reserved} шт.)</div>
+                        <div class="prod-name-sub">${item.product_name} (${item.box_name})</div>
+                    </div>
+                </div>
+                <div class="card-right-action">
+                    <button class="pick-row-btn" onclick="pickCartItem('${item.id}', '${item.box_name}', '${item.product_code}', ${item.qty_reserved}, '${safeBarcode}')">✓</button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function openImageModal(url) {
+        if (!url) return;
+        document.getElementById('modalImg').src = url;
+        document.getElementById('imageModal').classList.add('active');
+    }
+    function closeImageModal() { document.getElementById('imageModal').classList.remove('active'); }
+    function openInfoModal() { document.getElementById('infoModal').classList.add('active'); }
+    function closeInfoModal() { document.getElementById('infoModal').classList.remove('active'); }
+
+    function renderDbProductList() {}
+    function renderPhotoCatalog() {}
+    function loadHistory() {}
+
+    // Гарантована прив'язка кнопок головного меню через JS
+    document.addEventListener("DOMContentLoaded", function() {
+        initSystem();
+
+        document.querySelectorAll('.menu-btn[data-target]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const targetScreen = this.getAttribute('data-target');
+                if (targetScreen) {
+                    showScreen(targetScreen);
+                }
+            });
+        });
+    });
+</script>
+</body>
+</html>
