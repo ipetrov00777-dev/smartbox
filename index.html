@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.1 - Складський облік</title>
+    <title>SmartBox v4.8.2 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -132,7 +132,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.1 (Оновлено: 15.11.2026)</div>
+        <div class="app-version">SmartBox v4.8.2 (Оновлено: 15.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -236,9 +236,7 @@
                 Натисніть на категорію, щоб розгорнути список проблемних позицій та переглянути деталі.
             </p>
             
-            <div id="errorsDashboardContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
-                <!-- Динамічні інтерактивні картки-акордеони з товарами -->
-            </div>
+            <div id="errorsDashboardContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;"></div>
         </div>
     </div>
 
@@ -731,7 +729,6 @@
         if (psElem) psElem.innerText = stampText;
     }
 
-    // ПЕРЕВІРКА І ОТРИМАННЯ ДАНИХ ПО 4 VIEW
     async function checkSystemErrors() {
         try {
             const [resBoxes, resPlusMinus, resNoZag, resDbQ] = await Promise.all([
@@ -777,7 +774,6 @@
         }
     }
 
-    // РЕНДЕР ІНТЕРАКТИВНОГО ДАШБОРДА ПОМИЛОК З СПИСКАМИ ТОВАРІВ
     async function renderInteractiveErrorsDashboard() {
         const container = document.getElementById('errorsDashboardContainer');
         if (!container) return;
@@ -793,7 +789,7 @@
                 Статус системи: <b>${total === 0 ? '🟢 Усі дані узгоджені, помилок немає' : `🔴 Виявлено проблемних позицій: ${total}`}</b>
             </div>
 
-            <!-- Категорія 1: Рассинхронизация остатка и партий -->
+            <!-- Категорія 1 -->
             <div class="error-dashboard-card" style="border-left: 4px solid #ef4444;">
                 <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc1')">
                     <div>
@@ -810,7 +806,7 @@
                 </div>
             </div>
 
-            <!-- Категорія 2: Расхождение с 1С -->
+            <!-- Категорія 2 -->
             <div class="error-dashboard-card" style="border-left: 4px solid #eab308;">
                 <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc2')">
                     <div>
@@ -827,7 +823,7 @@
                 </div>
             </div>
 
-            <!-- Категорія 3: Отсутствует учет 1С -->
+            <!-- Категорія 3 -->
             <div class="error-dashboard-card" style="border-left: 4px solid #f97316;">
                 <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc3')">
                     <div>
@@ -844,7 +840,7 @@
                 </div>
             </div>
 
-            <!-- Категорія 4: Товары-заглушки -->
+            <!-- Категорія 4 -->
             <div class="error-dashboard-card" style="border-left: 4px solid #3b82f6;">
                 <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc4')">
                     <div>
@@ -1232,11 +1228,13 @@
         document.getElementById('mixedDatesModal').classList.remove('active');
     }
 
+    // ИСПРАВЛЕННАЯ ФУНКЦИЯ АВТОМАТИЧЕСКОГО СПИСАНИЯ ИЗ ПОДСОРТА ПО FIFO С УЧЕТОМ ID И ОБОИХ ТАБЛИЦ
     async function executePodsortPick(boxName, productCode, qtyToPick, productName, productBarcode) {
         const confirmMsg = `Ви точно взяли товар?\nШтрихкод: ${productBarcode}\nЯщик: ${boxName}\nКількість: ${qtyToPick} шт.`;
         if (!confirm(confirmMsg)) return;
 
         try {
+            // 1. Списание по батчам (FIFO)
             const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
             boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
@@ -1256,19 +1254,25 @@
                 }
             }
 
-            const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&barcode=eq.${encodeURIComponent(productBarcode)}&select=*`, { headers: HEADERS });
+            // 2. Списание общего остатка в inventory_boxes по точному ID строки ящика
+            const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
             const boxData = await resBox.json();
+            
             if (boxData && boxData.length > 0) {
-                const newQty = Math.max(0, (parseInt(boxData[0].qty, 10) || 0) - qtyToPick);
+                // Ищем строку с точным совпадением штрихкода или берем первую доступную
+                let targetBoxRow = boxData.find(b => b.barcode === productBarcode) || boxData[0];
+                const newQty = Math.max(0, (parseInt(targetBoxRow.qty, 10) || 0) - qtyToPick);
+
                 if (newQty === 0) {
-                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&barcode=eq.${encodeURIComponent(productBarcode)}`, { method: 'DELETE', headers: HEADERS });
+                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetBoxRow.id}`, { method: 'DELETE', headers: HEADERS });
                 } else {
-                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&barcode=eq.${encodeURIComponent(productBarcode)}`, {
+                    await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetBoxRow.id}`, {
                         method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
                     });
                 }
             }
 
+            // 3. Запись в историю движений
             await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
                 method: 'POST', headers: HEADERS,
                 body: JSON.stringify({ box_name: boxName, product_code: productCode, product_name: productName, qty_moved: qtyToPick })
@@ -1277,7 +1281,10 @@
             await loadAllData();
             renderPodsort();
             alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName} на виніс у зал!`);
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(e);
+            alert("Помилка списання: " + e.message);
+        }
     }
 
     const scanInput = document.getElementById('scanInput');
@@ -1455,9 +1462,7 @@
                         fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${existingCartItem.id}`, {
                             method: 'PATCH',
                             headers: HEADERS,
-                            body: JSON.stringify({ 
-                                qty_reserved: newQtyReserved
-                            })
+                            body: JSON.stringify({ qty_reserved: newQtyReserved })
                         })
                     );
                 } else {
