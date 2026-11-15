@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.0 - Складський облік</title>
+    <title>SmartBox v4.8.1 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -96,7 +96,11 @@
         .modal-batch-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #333; }
         .modal-batch-item:last-child { border-bottom: none; }
 
-        .error-section-header { font-size: 14px; font-weight: bold; margin: 15px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .error-dashboard-card { background: #1e1e1e; border-radius: 8px; border: 1px solid #333; margin-bottom: 12px; overflow: hidden; }
+        .error-dashboard-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #262626; transition: background 0.2s; }
+        .error-dashboard-header:hover { background: #2f2f2f; }
+        .error-dashboard-body { padding: 12px 15px; background: #181818; border-top: 1px solid #333; display: none; }
+        .error-dashboard-body.active { display: block; }
 
         .sync-stamp { font-size: 11px; color: #888; font-weight: normal; margin-top: 3px; }
         .app-version { text-align: center; margin-top: 20px; color: #28a745; font-size: 13px; font-weight: bold; }
@@ -106,7 +110,7 @@
 
 <div class="container">
 
-    <!-- 1. ГОЛОВНЕ МЕНЮ -->
+    <!-- 1. ГОЛОВНЕ МЕНЮ (ДАШБОРД СИСТЕМИ) -->
     <div id="menuScreen" class="screen active">
         <div class="header-bar">
             <h2>📌 Головне меню</h2>
@@ -128,7 +132,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.0 (Оновлено: 15.11.2026)</div>
+        <div class="app-version">SmartBox v4.8.1 (Оновлено: 15.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -218,22 +222,22 @@
         </div>
     </div>
 
-    <!-- 5. РОЗДІЛ: ПОМИЛКИ (ЦЕНТР МОНІТОРИНГУ) -->
+    <!-- 5. РОЗДІЛ: ІНТЕРАКТИВНИЙ ЦЕНТР ПОМИЛОК (ДАШБОРД ПРОБЛЕМ) -->
     <div id="errorsSection" class="screen">
         <div class="header-bar">
             <div>
                 <h2 style="margin: 0;">⚠️ Центр моніторингу помилок</h2>
-                <div style="font-size: 11px; color: #dc3545;">Контроль цілісності даних (VIEWS)</div>
+                <div style="font-size: 11px; color: #dc3545;">Інтерактивний контроль цілісності даних</div>
             </div>
             <button class="back-btn" onclick="goToMenu()">Назад</button>
         </div>
         <div class="card">
             <p style="font-size: 12px; color: #aaa; margin-top: 0; line-height: 1.4;">
-                Автоматична перевірка узгодженості складських даних та довідників.
+                Натисніть на категорію, щоб розгорнути список проблемних позицій та переглянути деталі.
             </p>
             
-            <div id="errorsCardsContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 12px;">
-                <!-- Динамічні картки категорій помилок -->
+            <div id="errorsDashboardContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                <!-- Динамічні інтерактивні картки-акордеони з товарами -->
             </div>
         </div>
     </div>
@@ -592,7 +596,7 @@
             loadAllData().then(() => renderPodsort());
         }
         if (screenId === 'errorsSection') {
-            renderErrorsCenter();
+            renderInteractiveErrorsDashboard();
         }
         if (screenId === 'cartSection') {
             isCartEditMode = false;
@@ -727,36 +731,33 @@
         if (psElem) psElem.innerText = stampText;
     }
 
-    // ЛЕГКОВЕСНИЙ ОПРОС ЧЕРЕЗ 4 VIEW В БАЗІ ДАНИХ (0 НАВАНТАЖЕННЯ)
+    // ПЕРЕВІРКА І ОТРИМАННЯ ДАНИХ ПО 4 VIEW
     async function checkSystemErrors() {
         try {
             const [resBoxes, resPlusMinus, resNoZag, resDbQ] = await Promise.all([
-                fetch(`${SUPABASE_URL}/rest/v1/v_errors_box_vs_batches?select=*`, { headers: { ...HEADERS, 'Range': '0-0', 'Prefer': 'count=exact' } }),
-                fetch(`${SUPABASE_URL}/rest/v1/v_errors_plus_minus?select=*`, { headers: { ...HEADERS, 'Range': '0-0', 'Prefer': 'count=exact' } }),
-                fetch(`${SUPABASE_URL}/rest/v1/v_errors_no_zag?select=*`, { headers: { ...HEADERS, 'Range': '0-0', 'Prefer': 'count=exact' } }),
-                fetch(`${SUPABASE_URL}/rest/v1/v_errors_db_question?select=*`, { headers: { ...HEADERS, 'Range': '0-0', 'Prefer': 'count=exact' } })
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_box_vs_batches?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_plus_minus?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_no_zag?select=*`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/v_errors_db_question?select=*`, { headers: HEADERS })
             ]);
 
-            const getCount = (res) => {
-                const range = res.headers.get('content-range');
-                if (!range) return 0;
-                const parts = range.split('/');
-                return parts.length > 1 ? parseInt(parts[1], 10) || 0 : 0;
+            window._errorData = {
+                boxVsBatches: resBoxes.ok ? await resBoxes.json() : [],
+                plusMinus: resPlusMinus.ok ? await resPlusMinus.json() : [],
+                noZag: resNoZag.ok ? await resNoZag.json() : [],
+                dbQuestion: resDbQ.ok ? await resDbQ.json() : []
             };
 
-            const counts = {
-                boxVsBatches: getCount(resBoxes),
-                plusMinus: getCount(resPlusMinus),
-                noZag: getCount(resNoZag),
-                dbQuestion: getCount(resDbQ)
-            };
+            const total = window._errorData.boxVsBatches.length + 
+                          window._errorData.plusMinus.length + 
+                          window._errorData.noZag.length + 
+                          window._errorData.dbQuestion.length;
 
-            const total = counts.boxVsBatches + counts.plusMinus + counts.noZag + counts.dbQuestion;
             updateMenuErrorButtonUI(total);
-            return counts;
+            return total;
         } catch (err) {
-            console.error("Помилка при перевірці помилок через VIEWS:", err);
-            return { boxVsBatches: 0, plusMinus: 0, noZag: 0, dbQuestion: 0 };
+            console.error("Помилка при перевірці помилок:", err);
+            return 0;
         }
     }
 
@@ -776,72 +777,139 @@
         }
     }
 
-    async function renderErrorsCenter() {
-        const container = document.getElementById('errorsCardsContainer');
+    // РЕНДЕР ІНТЕРАКТИВНОГО ДАШБОРДА ПОМИЛОК З СПИСКАМИ ТОВАРІВ
+    async function renderInteractiveErrorsDashboard() {
+        const container = document.getElementById('errorsDashboardContainer');
         if (!container) return;
-        container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Завантаження звітів помилок...</div>';
+        container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">Завантаження деталей...</div>';
 
-        const counts = await checkSystemErrors();
-        const total = counts.boxVsBatches + counts.plusMinus + counts.noZag + counts.dbQuestion;
+        await checkSystemErrors();
+        const errs = window._errorData || { boxVsBatches: [], plusMinus: [], noZag: [], dbQuestion: [] };
+
+        const total = errs.boxVsBatches.length + errs.plusMinus.length + errs.noZag.length + errs.dbQuestion.length;
 
         container.innerHTML = `
-            <div style="font-size: 13px; color: #cbd5e1; margin-bottom: 4px;">
+            <div style="font-size: 13px; color: #cbd5e1; margin-bottom: 6px;">
                 Статус системи: <b>${total === 0 ? '🟢 Усі дані узгоджені, помилок немає' : `🔴 Виявлено проблемних позицій: ${total}`}</b>
             </div>
 
             <!-- Категорія 1: Рассинхронизация остатка и партий -->
-            <div class="card" style="border-left: 4px solid #ef4444; background: #261a1a;">
-                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 15px;">
-                    <span>🔴 Рассинхронизация общего остатка и партий</span>
-                    <span class="total-badge" style="background: #ef4444; color: #fff;">${counts.boxVsBatches} поз.</span>
+            <div class="error-dashboard-card" style="border-left: 4px solid #ef4444;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc1')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🔴 Рассинхронизация остатка и партий</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">inventory_boxes ⚡ box_batches</div>
+                    </div>
+                    <span class="total-badge" style="background: #ef4444; color: #fff;">${errs.boxVsBatches.length} поз.</span>
                 </div>
-                <div style="font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;">
-                    <b>Таблиці:</b> <code>inventory_boxes</code> ⚡ <code>box_batches</code><br>
-                    Загальна кількість товару в ящику не дорівнює сумі його партій по датах. Логіка FIFO може порушитись.
-                </div>
-                <div style="background: #1e1e1e; border-left: 3px solid #ef4444; padding: 8px 12px; margin-top: 8px; font-size: 12px; color: #e2e8f0; border-radius: 0 6px 6px 0;">
-                    <b>📌 Приклад проблеми:</b><br>
-                    📦 <b>Box-13</b> (товар 100122): загальний залишок = <b>21 шт.</b><br>
-                    📅 Сумма партій: 27.10 (7 шт.) + 30.10 (9 шт.) + 04.11 (3 шт.) = <b>19 шт.</b> (❌ різниця +2 шт.)
+                <div id="acc1" class="error-dashboard-body">
+                    <div style="font-size: 12px; color: #bbb; margin-bottom: 8px;">
+                        Загальна кількість в ящику не дорівнює сумі партій по датах (ламає FIFO).
+                    </div>
+                    ${renderErrorItemsList(errs.boxVsBatches, 'boxVsBatches')}
                 </div>
             </div>
 
             <!-- Категорія 2: Расхождение с 1С -->
-            <div class="card" style="border-left: 4px solid #eab308; background: #26231a;">
-                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 15px;">
-                    <span>🟡 Розбіжність з 1С (Склад > 1С)</span>
-                    <span class="total-badge" style="background: #eab308; color: #000;">${counts.plusMinus} поз.</span>
+            <div class="error-dashboard-card" style="border-left: 4px solid #eab308;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc2')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🟡 Розбіжність з 1С (Склад > 1С)</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">inventory_boxes ⚡ google_stock</div>
+                    </div>
+                    <span class="total-badge" style="background: #eab308; color: #000;">${errs.plusMinus.length} поз.</span>
                 </div>
-                <div style="font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;">
-                    <b>Таблиці:</b> <code>inventory_boxes</code> ⚡ <code>google_stock</code><br>
-                    На складі фізично більше товару, ніж у вигрузці 1С. Автопідсорт заблоковано.
+                <div id="acc2" class="error-dashboard-body">
+                    <div style="font-size: 12px; color: #bbb; margin-bottom: 8px;">
+                        На складі фізично більше товару, ніж у вигрузці 1С. Автопідсорт заблоковано.
+                    </div>
+                    ${renderErrorItemsList(errs.plusMinus, 'plusMinus')}
                 </div>
             </div>
 
             <!-- Категорія 3: Отсутствует учет 1С -->
-            <div class="card" style="border-left: 4px solid #f97316; background: #261f1a;">
-                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 15px;">
-                    <span>🟠 Відсутній облік 1С (Заг. = ?)</span>
-                    <span class="total-badge" style="background: #f97316; color: #fff;">${counts.noZag} поз.</span>
+            <div class="error-dashboard-card" style="border-left: 4px solid #f97316;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc3')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🟠 Відсутній облік 1С (Заг. = ?)</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">inventory_boxes ⚡ google_stock</div>
+                    </div>
+                    <span class="total-badge" style="background: #f97316; color: #fff;">${errs.noZag.length} поз.</span>
                 </div>
-                <div style="font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;">
-                    <b>Таблиці:</b> <code>inventory_boxes</code> ⚡ <code>google_stock</code><br>
-                    Товар є на складі в ящиках, але повністю відсутній у довіднику вигрузки 1С.
+                <div id="acc3" class="error-dashboard-body">
+                    <div style="font-size: 12px; color: #bbb; margin-bottom: 8px;">
+                        Товар є на складі, але повністю відсутній у довіднику вигрузки 1С.
+                    </div>
+                    ${renderErrorItemsList(errs.noZag, 'noZag')}
                 </div>
             </div>
 
             <!-- Категорія 4: Товары-заглушки -->
-            <div class="card" style="border-left: 4px solid #3b82f6; background: #1a222a;">
-                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 15px;">
-                    <span>🔵 Товары-заглушки (БД_?)</span>
-                    <span class="total-badge" style="background: #3b82f6; color: #fff;">${counts.dbQuestion} поз.</span>
+            <div class="error-dashboard-card" style="border-left: 4px solid #3b82f6;">
+                <div class="error-dashboard-header" onclick="toggleErrorAccordion('acc4')">
+                    <div>
+                        <span style="font-weight: bold; font-size: 14px;">🔵 Товары-заглушки (БД_?)</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">products (БД_?)</div>
+                    </div>
+                    <span class="total-badge" style="background: #3b82f6; color: #fff;">${errs.dbQuestion.length} поз.</span>
                 </div>
-                <div style="font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;">
-                    <b>Таблиця:</b> <code>products</code><br>
-                    Тимчасові картки товари з невідомими штрихкодами при приході. Потребують прив'язки до реального коду 1С.
+                <div id="acc4" class="error-dashboard-body">
+                    <div style="font-size: 12px; color: #bbb; margin-bottom: 8px;">
+                        Тимчасові картки товари з невідомими штрихкодами. Потребують прив'язки до 1С.
+                    </div>
+                    ${renderErrorItemsList(errs.dbQuestion, 'dbQuestion')}
                 </div>
             </div>
         `;
+    }
+
+    function toggleErrorAccordion(id) {
+        const body = document.getElementById(id);
+        if (body) {
+            body.classList.toggle('active');
+        }
+    }
+
+    function renderErrorItemsList(items, type) {
+        if (!items || items.length === 0) {
+            return '<div style="color: #28a745; font-size: 12px; padding: 6px 0;">✓ Немає проблемних позицій у цій категорії</div>';
+        }
+
+        let html = '';
+        items.forEach(item => {
+            const code = item.product_code || item.box_name || '---';
+            const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
+            const prodName = prod ? prod.product_name : (item.product_name || 'Назва не вказана');
+            
+            let detailsText = '';
+            if (type === 'boxVsBatches') {
+                detailsText = `Ящик: <b>${item.box_name}</b> | Залишок: <b>${item.inventory_boxes_qty}</b> | Партії: <b>${item.box_batches_sum}</b> ( різниця: ${item.diff} )`;
+            } else if (type === 'plusMinus') {
+                detailsText = `Склад: <b>${item.total_skl} шт.</b> | 1С Заг: <b>${item.total_zag} шт.</b>`;
+            } else if (type === 'noZag') {
+                detailsText = `Складський залишок: <b>${item.total_skl} шт.</b>`;
+            } else if (type === 'dbQuestion') {
+                detailsText = `Штрихкод: <b>${item.barcode || code}</b>`;
+            }
+
+            html += `
+                <div style="background: #121212; padding: 8px; border-radius: 6px; margin-bottom: 6px; border: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 13px; font-weight: bold; color: #64b5f6;">${code} - ${prodName}</div>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 2px;">${detailsText}</div>
+                    </div>
+                    <button class="edit-toggle-btn" style="padding: 4px 8px; font-size: 11px;" onclick="jumpToDbEdit('${code}')">✎ Дія</button>
+                </div>
+            `;
+        });
+        return html;
+    }
+
+    function jumpToDbEdit(code) {
+        showScreen('dbSection');
+        setTimeout(() => {
+            selectDbProductForEdit(code);
+        }, 150);
     }
 
     function renderWarehouseScreen() {
