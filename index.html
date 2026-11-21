@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.6 - Складський облік</title>
+    <title>SmartBox v4.8.7 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -136,7 +136,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.6 (Оновлено: 22.11.2026)</div>
+        <div class="app-version">SmartBox v4.8.7 (Оновлено: 22.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -897,6 +897,7 @@
         const groupedWarehouse = {};
         globalStock.forEach(item => {
             const code = item.product_code;
+            if (!code) return;
             if (!groupedWarehouse[code]) groupedWarehouse[code] = [];
             groupedWarehouse[code].push(item);
         });
@@ -1168,6 +1169,7 @@
         const groupedWarehouse = {};
         globalStock.forEach(item => {
             const code = item.product_code;
+            if (!code) return;
             if (!groupedWarehouse[code]) groupedWarehouse[code] = [];
             groupedWarehouse[code].push(item);
         });
@@ -1236,7 +1238,11 @@
 
             let boxesHtml = '';
             items.forEach(b => {
-                const boxBatches = globalBatches.filter(bt => bt.box_name === b.box_name && bt.product_code.toLowerCase() === code.toLowerCase());
+                const boxBatches = globalBatches.filter(bt =>
+                    bt.box_name === b.box_name &&
+                    bt.product_code.toLowerCase() === code.toLowerCase() &&
+                    (!b.barcode || !bt.barcode || bt.barcode === b.barcode)
+                );
                 boxBatches.sort((x, y) => new Date(x.arrival_date || 0) - new Date(y.arrival_date || 0));
 
                 let dateDisplayStr = '—';
@@ -1504,7 +1510,13 @@
     }
 
     async function executeUnifiedFifoPick(boxName, productCode, qtyToPick, productName, productBarcode) {
-        const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
+        const cleanBarcode = productBarcode ? String(productBarcode).trim() : '';
+
+        const boxBatches = globalBatches.filter(bt =>
+            bt.box_name === boxName &&
+            bt.product_code.toLowerCase() === productCode.toLowerCase() &&
+            (!cleanBarcode || !bt.barcode || String(bt.barcode).trim() === cleanBarcode)
+        );
         boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
 
         let remainingToTake = qtyToPick;
@@ -1515,32 +1527,60 @@
             remainingToTake -= takeFromBatch;
 
             if (newBatchQty === 0) {
-                await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, { method: 'DELETE', headers: HEADERS });
-            } else {
-                await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, {
-                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newBatchQty })
+                const delBatchRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, {
+                    method: 'DELETE',
+                    headers: HEADERS
                 });
+                if (!delBatchRes.ok) throw new Error(await delBatchRes.text());
+            } else {
+                const patchBatchRes = await fetch(`${SUPABASE_URL}/rest/v1/box_batches?id=eq.${batch.id}`, {
+                    method: 'PATCH',
+                    headers: HEADERS,
+                    body: JSON.stringify({ qty: newBatchQty })
+                });
+                if (!patchBatchRes.ok) throw new Error(await patchBatchRes.text());
             }
         }
 
-        const resBox = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}&select=*`, { headers: HEADERS });
+        let boxQueryUrl = `${SUPABASE_URL}/rest/v1/inventory_boxes?box_name=eq.${encodeURIComponent(boxName)}&product_code=eq.${encodeURIComponent(productCode)}`;
+        if (cleanBarcode) {
+            boxQueryUrl += `&barcode=eq.${encodeURIComponent(cleanBarcode)}`;
+        }
+        boxQueryUrl += `&select=*`;
+
+        const resBox = await fetch(boxQueryUrl, { headers: HEADERS });
+        if (!resBox.ok) throw new Error(await resBox.text());
         const boxData = await resBox.json();
         if (boxData && boxData.length > 0) {
-            const targetRow = boxData.find(b => b.barcode === productBarcode) || boxData[0];
+            const targetRow = boxData[0];
             const newQty = Math.max(0, (parseInt(targetRow.qty, 10) || 0) - qtyToPick);
             if (newQty === 0) {
-                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetRow.id}`, { method: 'DELETE', headers: HEADERS });
-            } else {
-                await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetRow.id}`, {
-                    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ qty: newQty })
+                const delBoxRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetRow.id}`, {
+                    method: 'DELETE',
+                    headers: HEADERS
                 });
+                if (!delBoxRes.ok) throw new Error(await delBoxRes.text());
+            } else {
+                const patchBoxRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?id=eq.${targetRow.id}`, {
+                    method: 'PATCH',
+                    headers: HEADERS,
+                    body: JSON.stringify({ qty: newQty })
+                });
+                if (!patchBoxRes.ok) throw new Error(await patchBoxRes.text());
             }
         }
 
-        await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
-            method: 'POST', headers: HEADERS,
-            body: JSON.stringify({ box_name: boxName, product_code: productCode, product_name: productName, qty_moved: qtyToPick })
+        const histRes = await fetch(`${SUPABASE_URL}/rest/v1/completed_movements`, {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+                box_name: boxName,
+                product_code: productCode,
+                product_name: productName,
+                qty_moved: qtyToPick
+            })
         });
+        if (!histRes.ok) throw new Error(await histRes.text());
     }
 
     async function executePodsortPick(boxName, productCode, qtyToPick, productName, productBarcode) {
@@ -1711,6 +1751,10 @@
 
     async function addAllToCart() {
         if (!activeOrderId) await ensureActiveOrder();
+        if (!activeOrderId) {
+            alert("Не вдалося ініціалізувати замовлення в базі.");
+            return;
+        }
         
         const requests = [];
 
@@ -1756,10 +1800,18 @@
         });
 
         if (requests.length > 0) {
-            await Promise.all(requests);
-            await loadAllData();
-            renderLocationsTable();
-            alert("Товари успішно додано в корзинку!");
+            try {
+                const responses = await Promise.all(requests);
+                for (const r of responses) {
+                    if (!r.ok) throw new Error(await r.text());
+                }
+                await loadAllData();
+                renderLocationsTable();
+                alert("Товари успішно додано в корзинку!");
+            } catch (e) {
+                console.error(e);
+                alert("Помилка додавання в корзинку: " + e.message);
+            }
         }
     }
 
@@ -1820,7 +1872,7 @@
 
             itemsInBox.forEach(item => {
                 const prod = globalProducts.find(p => p.product_code?.toLowerCase() === item.product_code?.toLowerCase());
-                const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase() && s.barcode === item.barcode);
+                const stockInBox = globalStock.find(s => s.box_name === boxName && s.product_code?.toLowerCase() === item.product_code?.toLowerCase() && (!item.barcode || s.barcode === item.barcode));
                 const barcodeDisplay = item.barcode || (stockInBox && stockInBox.barcode ? stockInBox.barcode : (prod ? (prod.barcode || item.product_code) : item.product_code));
                 
                 const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
@@ -1895,7 +1947,10 @@
         });
 
         try {
-            await Promise.all(deletePromises);
+            const responses = await Promise.all(deletePromises);
+            for (const r of responses) {
+                if (!r.ok) throw new Error(await r.text());
+            }
             
             isCartEditMode = false;
             const toggleBtn = document.getElementById('cartEditToggleBtn');
@@ -1909,7 +1964,7 @@
             alert("Вибрані позиції успішно видалено з корзинки!");
         } catch (e) {
             console.error("Помилка видалення:", e);
-            alert("Сталася помилка при видаленні.");
+            alert("Сталася помилка при видаленні: " + e.message);
         }
     }
 
@@ -1923,7 +1978,12 @@
 
             await executeUnifiedFifoPick(boxName, productCode, qtyToPick, prodName, productBarcode);
 
-            await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, { method: 'DELETE', headers: HEADERS });
+            const delOrderRes = await fetch(`${SUPABASE_URL}/rest/v1/order_items?id=eq.${itemId}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+            if (!delOrderRes.ok) throw new Error(await delOrderRes.text());
+
             await loadAllData();
             renderCart();
             alert(`Успішно списано ${qtyToPick} шт. із ящика ${boxName}!`);
