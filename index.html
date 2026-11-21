@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.7 - Складський облік</title>
+    <title>SmartBox v4.8.8 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -136,7 +136,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.7 (Оновлено: 22.11.2026)</div>
+        <div class="app-version">SmartBox v4.8.8 (Оновлено: 22.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -265,8 +265,14 @@
     <!-- 7. РОЗДІЛ: ІСТОРІЯ -->
     <div id="historySection" class="screen">
         <div class="header-bar">
-            <h2>📜 Історія виносів</h2>
-            <button class="back-btn" onclick="goToMenu()">Назад</button>
+            <div>
+                <h2 style="margin: 0;">📜 Історія виносів</h2>
+                <div class="sync-stamp">Автоочистка записів старше 1 року</div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+                <button class="back-btn" onclick="loadHistory()" title="Оновити">↻</button>
+                <button class="back-btn" onclick="goToMenu()">Назад</button>
+            </div>
         </div>
         <div class="card">
             <table>
@@ -584,6 +590,7 @@
     let globalPlanograms = [];
     let googleStockData = [];
     let lastSyncTime = null;
+    let historyCleanupDone = false;
 
     let currentScannedMatches = [];
     let currentProductName = '';
@@ -677,8 +684,31 @@
         }
     }
 
+    async function cleanupOldHistory(force = false) {
+        if (historyCleanupDone && !force) return;
+        try {
+            const oneYearAgo = new Date();
+            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+            const cutoffIso = oneYearAgo.toISOString();
+
+            const res = await fetch(
+                `${SUPABASE_URL}/rest/v1/completed_movements?created_at=lt.${encodeURIComponent(cutoffIso)}`,
+                {
+                    method: 'DELETE',
+                    headers: { ...HEADERS, 'Prefer': 'return=minimal' }
+                }
+            );
+            if (res.ok) {
+                historyCleanupDone = true;
+            }
+        } catch (e) {
+            console.warn("Автоочистка історії (>1 року):", e);
+        }
+    }
+
     async function initSystem() {
         await ensureActiveOrder();
+        await cleanupOldHistory(false);
         await loadAllData();
         updateCartBadge();
         updateErrorsBadge();
@@ -2015,6 +2045,7 @@
         const tbody = document.getElementById('historyTableBody');
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Завантаження...</td></tr>';
         try {
+            await cleanupOldHistory(true);
             const res = await fetch(`${SUPABASE_URL}/rest/v1/completed_movements?select=*&order=created_at.desc&limit=50`, { headers: HEADERS });
             if (res.ok) {
                 const historyItems = await res.json();
