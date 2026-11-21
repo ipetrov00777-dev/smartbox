@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.4 - Складський облік</title>
+    <title>SmartBox v4.8.5 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -100,6 +100,13 @@
 
         .sync-stamp { font-size: 11px; color: #888; font-weight: normal; margin-top: 3px; }
         .app-version { text-align: center; margin-top: 20px; color: #28a745; font-size: 13px; font-weight: bold; }
+
+        .extra-barcodes-box { background: #141414; border: 1px solid #333; border-radius: 6px; padding: 8px; margin-bottom: 10px; }
+        .extra-barcode-chip { display: inline-flex; align-items: center; gap: 6px; background: #252525; border: 1px solid #444; color: #81c784; font-size: 12px; padding: 3px 8px; border-radius: 12px; margin: 3px 4px 3px 0; }
+        .extra-barcode-del { background: none; border: none; color: #ff6b6b; font-weight: bold; cursor: pointer; padding: 0 2px; font-size: 13px; }
+        .extra-barcode-add-row { display: flex; gap: 6px; margin-top: 8px; }
+        .extra-barcode-add-row input { flex: 1; padding: 6px 8px; font-size: 13px; border-width: 1px; }
+        .extra-barcode-add-btn { background: #1a73e8; color: #fff; border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -128,7 +135,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.4 (Оновлено: 16.11.2026)</div>
+        <div class="app-version">SmartBox v4.8.5 (Оновлено: 22.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -152,6 +159,7 @@
                     <h3 id="resProductName">Назва товару</h3>
                     <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                     <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
+                    <p><b>Всі штрихкоди:</b> <span id="resAllBarcodes" style="color: #81c784;">---</span></p>
                     <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
                     <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #1b5e20; color: #81c784;">0 шт.</span></p>
                 </div>
@@ -417,9 +425,18 @@
                         <input type="text" id="dbEditCode" style="background: #2b2b2b; color: #64b5f6; font-weight: bold; padding: 6px;">
                     </div>
                     <div class="form-group" style="margin-bottom: 6px;">
-                        <label style="font-size: 11px; color: #aaa;">Штрихкод:</label>
+                        <label style="font-size: 11px; color: #aaa;">Основний штрихкод:</label>
                         <input type="text" id="dbEditBarcode" style="padding: 6px;">
                     </div>
+                </div>
+            </div>
+
+            <div class="extra-barcodes-box" style="margin-top: 8px;">
+                <label style="font-size: 11px; color: #81c784; margin-bottom: 4px;">Додаткові штрихкоди (product_barcodes):</label>
+                <div id="dbExtraBarcodesList"></div>
+                <div class="extra-barcode-add-row">
+                    <input type="text" id="dbNewExtraBarcodeInput" placeholder="Новий штрихкод..." onkeydown="if(event.key==='Enter'){event.preventDefault();addExtraBarcodeToProduct();}">
+                    <button type="button" class="extra-barcode-add-btn" onclick="addExtraBarcodeToProduct()">+ Додати ШК</button>
                 </div>
             </div>
 
@@ -562,6 +579,7 @@
     let globalStock = [];
     let globalBatches = [];
     let globalProducts = [];
+    let globalProductBarcodes = [];
     let globalPlanograms = [];
     let googleStockData = [];
     let lastSyncTime = null;
@@ -578,6 +596,69 @@
     let photoOnlyWithoutPhoto = localStorage.getItem('photoOnlyWithoutPhoto') === 'true';
     let currentEditingProduct = null;
     let currentDbEditingProduct = null;
+
+    function getAllBarcodesForProduct(productCode) {
+        if (!productCode) return [];
+        const codeLower = productCode.toLowerCase();
+        const set = new Set();
+
+        const prod = globalProducts.find(p => p.product_code?.toLowerCase() === codeLower);
+        if (prod && prod.barcode && String(prod.barcode).trim() !== '') {
+            set.add(String(prod.barcode).trim());
+        }
+
+        globalProductBarcodes.forEach(pb => {
+            if (pb.product_code?.toLowerCase() === codeLower && pb.barcode && String(pb.barcode).trim() !== '') {
+                set.add(String(pb.barcode).trim());
+            }
+        });
+
+        return Array.from(set);
+    }
+
+    function findProductByCodeOrBarcode(query) {
+        if (!query) return null;
+        const qLower = String(query).trim().toLowerCase();
+        if (!qLower) return null;
+
+        const byCode = globalProducts.find(p => p.product_code && p.product_code.toLowerCase() === qLower);
+        if (byCode) return byCode;
+
+        const byMainBarcode = globalProducts.find(p => p.barcode && p.barcode.toLowerCase() === qLower);
+        if (byMainBarcode) return byMainBarcode;
+
+        const byExtraBarcode = globalProductBarcodes.find(pb => pb.barcode && pb.barcode.toLowerCase() === qLower);
+        if (byExtraBarcode && byExtraBarcode.product_code) {
+            return globalProducts.find(p => p.product_code && p.product_code.toLowerCase() === byExtraBarcode.product_code.toLowerCase()) || null;
+        }
+
+        return null;
+    }
+
+    async function ensureBarcodeLinked(productCode, barcode) {
+        if (!productCode || !barcode) return;
+        const cleanCode = String(productCode).trim();
+        const cleanBarcode = String(barcode).trim();
+        if (!cleanCode || !cleanBarcode || cleanBarcode === cleanCode) return;
+
+        const alreadyExists = globalProductBarcodes.some(
+            pb => pb.barcode && pb.barcode.toLowerCase() === cleanBarcode.toLowerCase()
+        );
+        if (alreadyExists) return;
+
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/product_barcodes`, {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+                product_code: cleanCode,
+                barcode: cleanBarcode
+            })
+        });
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText || 'Помилка привʼязки штрихкоду');
+        }
+    }
 
     async function initSystem() {
         await ensureActiveOrder();
@@ -601,6 +682,8 @@
         if (totalStock) totalStock.innerText = '0 шт.';
         const totalQty = document.getElementById('resTotalQty');
         if (totalQty) totalQty.innerText = '0 шт.';
+        const allBc = document.getElementById('resAllBarcodes');
+        if (allBc) allBc.innerText = '---';
     }
 
     function showScreen(screenId) {
@@ -670,6 +753,7 @@
     async function ensureActiveOrder() {
         try {
             const res = await fetch(`${SUPABASE_URL}/rest/v1/orders?status=eq.draft&select=*&limit=1`, { headers: HEADERS });
+            if (!res.ok) return;
             const orders = await res.json();
             if (orders && orders.length > 0) {
                 activeOrderId = orders[0].id;
@@ -679,19 +763,22 @@
                     headers: HEADERS,
                     body: JSON.stringify({ order_number: 'ORD-' + Math.floor(1000 + Math.random() * 9000), status: 'draft' })
                 });
-                const newOrders = await newOrderRes.json();
-                if (newOrders && newOrders.length > 0) activeOrderId = newOrders[0].id;
+                if (newOrderRes.ok) {
+                    const newOrders = await newOrderRes.json();
+                    if (newOrders && newOrders.length > 0) activeOrderId = newOrders[0].id;
+                }
             }
         } catch (e) { console.error("Помилка замовлення:", e); }
     }
 
     async function loadAllData() {
         try {
-            const [stockRes, batchesRes, prodRes, rawProductsRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
+            const [stockRes, batchesRes, viewRes, rawProductsRes, barcodesRes, cartRes, planoRes, gStockRes, settingsRes] = await Promise.all([
                 fetch(`${SUPABASE_URL}/rest/v1/inventory_boxes?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/box_batches?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/view_smartbox_main?select=*`, { headers: HEADERS }),
-                fetch(`${SUPABASE_URL}/rest/v1/products?select=product_code,photo_url,barcode,product_name`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/products?select=product_code,photo_url,barcode,product_name,package_code,package_photo_url`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/rest/v1/product_barcodes?select=*`, { headers: HEADERS }),
                 activeOrderId ? fetch(`${SUPABASE_URL}/rest/v1/order_items?order_id=eq.${activeOrderId}&select=*`, { headers: HEADERS }) : Promise.resolve({ ok: false }),
                 fetch(`${SUPABASE_URL}/rest/v1/planograms?select=*`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/rest/v1/google_stock?select=*`, { headers: HEADERS }),
@@ -700,32 +787,66 @@
             
             if (stockRes.ok) globalStock = await stockRes.json();
             if (batchesRes.ok) globalBatches = await batchesRes.json();
+            if (barcodesRes.ok) globalProductBarcodes = await barcodesRes.json();
             
-            if (prodRes.ok) {
-                globalProducts = await prodRes.json();
-                if (rawProductsRes.ok) {
-                    const rawProducts = await rawProductsRes.json();
-                    const extraMap = {};
-                    rawProducts.forEach(p => {
-                        if (p.product_code) {
-                            extraMap[p.product_code.toLowerCase()] = {
-                                photo_url: p.photo_url || null,
-                                barcode: p.barcode || null,
-                                product_name: p.product_name || null
-                            };
-                        }
-                    });
-                    globalProducts = globalProducts.map(p => {
-                        const code = p.product_code ? p.product_code.toLowerCase() : '';
-                        const extra = extraMap[code] || {};
-                        return {
-                            ...p,
-                            product_name: p.product_name || extra.product_name || 'Назва не вказана',
-                            photo_url: p.photo_url || extra.photo_url || null,
-                            barcode: p.barcode || extra.barcode || null
-                        };
-                    });
+            const viewRows = viewRes.ok ? await viewRes.json() : [];
+            const viewByCode = {};
+            viewRows.forEach(row => {
+                if (row.product_code) {
+                    const key = row.product_code.toLowerCase();
+                    if (!viewByCode[key]) {
+                        viewByCode[key] = row;
+                    }
                 }
+            });
+
+            if (rawProductsRes.ok) {
+                const rawProducts = await rawProductsRes.json();
+                const uniqueMap = new Map();
+
+                rawProducts.forEach(p => {
+                    if (!p.product_code) return;
+                    const key = p.product_code.toLowerCase();
+                    const vRow = viewByCode[key] || {};
+                    uniqueMap.set(key, {
+                        ...vRow,
+                        ...p,
+                        product_name: p.product_name || vRow.product_name || 'Назва не вказана',
+                        photo_url: p.photo_url || vRow.photo_url || null,
+                        barcode: p.barcode || vRow.barcode || null,
+                        package_code: p.package_code || vRow.package_code || null,
+                        package_photo_url: p.package_photo_url || vRow.package_photo_url || null
+                    });
+                });
+
+                Object.keys(viewByCode).forEach(key => {
+                    if (!uniqueMap.has(key)) {
+                        const vRow = viewByCode[key];
+                        uniqueMap.set(key, {
+                            ...vRow,
+                            product_name: vRow.product_name || 'Назва не вказана',
+                            photo_url: vRow.photo_url || null,
+                            barcode: vRow.barcode || null
+                        });
+                    }
+                });
+
+                globalProducts = Array.from(uniqueMap.values());
+            } else if (viewRows.length > 0) {
+                const uniqueMap = new Map();
+                viewRows.forEach(vRow => {
+                    if (!vRow.product_code) return;
+                    const key = vRow.product_code.toLowerCase();
+                    if (!uniqueMap.has(key)) {
+                        uniqueMap.set(key, {
+                            ...vRow,
+                            product_name: vRow.product_name || 'Назва не вказана',
+                            photo_url: vRow.photo_url || null,
+                            barcode: vRow.barcode || null
+                        });
+                    }
+                });
+                globalProducts = Array.from(uniqueMap.values());
             }
 
             if (cartRes.ok) dbCartItems = await cartRes.json();
@@ -889,7 +1010,8 @@
     function createErrorItemCard(code, type, errInfo) {
         const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
         const prodName = prod ? prod.product_name : 'Назва не вказана';
-        const barcodeVal = prod && prod.barcode ? prod.barcode : code;
+        const allBc = getAllBarcodesForProduct(code);
+        const barcodeVal = allBc.length > 0 ? allBc.join(', ') : (prod && prod.barcode ? prod.barcode : code);
         const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
         const card = document.createElement('div');
@@ -952,7 +1074,8 @@
         
         const prod = globalProducts.find(p => p.product_code?.toLowerCase() === codeLower);
         const prodName = prod ? prod.product_name : 'Назва не вказана';
-        const barcodeVal = prod && prod.barcode ? prod.barcode : productCode;
+        const allBc = getAllBarcodesForProduct(productCode);
+        const barcodeVal = allBc.length > 0 ? allBc.join(', ') : (prod && prod.barcode ? prod.barcode : productCode);
 
         document.getElementById('errModalProdName').innerText = prodName;
         document.getElementById('errModalProdCode').innerText = `${barcodeVal} (Код: ${productCode.toUpperCase()})`;
@@ -1045,8 +1168,11 @@
             const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
             const prodName = prod ? prod.product_name : 'Назва не вказана';
             
+            const allBc = getAllBarcodesForProduct(code);
             const firstBoxWithBarcode = items.find(i => i.barcode);
-            const barcodeVal = firstBoxWithBarcode ? firstBoxWithBarcode.barcode : (prod && prod.barcode ? prod.barcode : code);
+            const barcodeVal = allBc.length > 0
+                ? allBc.join(', ')
+                : (firstBoxWithBarcode ? firstBoxWithBarcode.barcode : (prod && prod.barcode ? prod.barcode : code));
             
             const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
@@ -1123,7 +1249,7 @@
                         <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото" style="width: 50px; height: 50px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid #444; cursor: pointer; flex-shrink: 0;">
                         <div style="min-width: 0; flex: 1;">
                             <div style="font-size: 13px; font-weight: bold; color: #64b5f6;">${code}</div>
-                            <div style="font-size: 11px; color: #28a745; font-weight: bold;">Шк: ${barcodeVal}</div>
+                            <div style="font-size: 11px; color: #28a745; font-weight: bold; word-break: break-word;">Шк: ${barcodeVal}</div>
                         </div>
                     </div>
                     <div style="font-size: 12px; color: #fff; margin-bottom: 6px; line-height: 1.3;">${prodName}</div>
@@ -1356,7 +1482,6 @@
         document.getElementById('mixedDatesModal').classList.remove('active');
     }
 
-    // ЄДИНА ФУНКЦІЯ FIFO-СПИСАННЯ ДЛЯ КОРЗИНКИ ТА ПІДСОРТУ
     async function executeUnifiedFifoPick(boxName, productCode, qtyToPick, productName, productBarcode) {
         const boxBatches = globalBatches.filter(bt => bt.box_name === boxName && bt.product_code.toLowerCase() === productCode.toLowerCase());
         boxBatches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
@@ -1426,12 +1551,7 @@
 
     function processScannedCode(scannedVal) {
         const resultCard = document.getElementById('productResultCard');
-        const valLower = scannedVal.toLowerCase();
-
-        let foundProduct = globalProducts.find(p => p.product_code && p.product_code.toLowerCase() === valLower);
-        if (!foundProduct) {
-            foundProduct = globalProducts.find(p => p.barcode && p.barcode.toLowerCase() === valLower);
-        }
+        const foundProduct = findProductByCodeOrBarcode(scannedVal);
 
         if (foundProduct) {
             currentProductCode = foundProduct.product_code;
@@ -1445,6 +1565,9 @@
 
         const photoUrl = (foundProduct && foundProduct.photo_url) ? foundProduct.photo_url : NO_IMAGE_PLACEHOLDER;
         document.getElementById('resProductThumb').src = photoUrl;
+
+        const allBarcodes = getAllBarcodesForProduct(currentProductCode);
+        document.getElementById('resAllBarcodes').innerText = allBarcodes.length > 0 ? allBarcodes.join(', ') : '—';
 
         const matches = globalStock.filter(item => item.product_code && item.product_code.toLowerCase() === currentProductCode.toLowerCase());
         matches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
@@ -1870,8 +1993,7 @@
     }
 
     async function processContinuousArrival(scannedCode) {
-        const codeLower = scannedCode.toLowerCase();
-        const prodInfo = globalProducts.find(p => (p.product_code?.toLowerCase() === codeLower) || (p.barcode?.toLowerCase() === codeLower));
+        const prodInfo = findProductByCodeOrBarcode(scannedCode);
 
         let finalProductCode = prodInfo ? prodInfo.product_code : 'БД_' + scannedCode;
         let finalBarcode = scannedCode;
@@ -1879,12 +2001,23 @@
 
         if (!prodInfo) {
             try {
-                await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+                const createProdRes = await fetch(`${SUPABASE_URL}/rest/v1/products`, {
                     method: 'POST', headers: HEADERS,
                     body: JSON.stringify({ product_code: finalProductCode, product_name: 'БД_?', barcode: finalBarcode })
                 });
+                if (!createProdRes.ok) {
+                    throw new Error(await createProdRes.text());
+                }
+                await ensureBarcodeLinked(finalProductCode, finalBarcode);
                 await loadAllData();
             } catch (e) { console.error(e); }
+        } else {
+            try {
+                const knownBarcodes = getAllBarcodesForProduct(finalProductCode).map(b => b.toLowerCase());
+                if (!knownBarcodes.includes(finalBarcode.toLowerCase())) {
+                    await ensureBarcodeLinked(finalProductCode, finalBarcode);
+                }
+            } catch (e) { console.warn("Привʼязка штрихкоду при приході:", e); }
         }
 
         try {
@@ -1981,8 +2114,7 @@
     }
 
     function processShelfScan(code) {
-        const codeLower = code.toLowerCase();
-        const prodInfo = globalProducts.find(p => (p.product_code?.toLowerCase() === codeLower) || (p.barcode?.toLowerCase() === codeLower));
+        const prodInfo = findProductByCodeOrBarcode(code);
         currentShelfProductCode = prodInfo ? prodInfo.product_code : code;
         const currentName = prodInfo ? (prodInfo.product_name || 'Назва не вказана') : 'Невідомий товар';
 
@@ -2072,6 +2204,8 @@
         list.forEach(prod => {
             const hasPhoto = (prod.photo_url && prod.photo_url.trim() !== '' && prod.photo_url !== NO_IMAGE_PLACEHOLDER);
             const thumbUrl = hasPhoto ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
+            const allBc = getAllBarcodesForProduct(prod.product_code);
+            const bcText = allBc.length > 0 ? allBc.join(', ') : (prod.barcode || '—');
             
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item-card';
@@ -2081,35 +2215,34 @@
                 : `<span style="font-size: 11px; color: #777; margin-top: 4px; display: inline-block;">Немає посилання</span>`;
 
             itemDiv.innerHTML = `
-                <div class="card-left-flex" style="cursor: pointer;" onclick="selectProductForPhotoEdit(${JSON.stringify(prod).replace(/"/g, '&quot;')})">
+                <div class="card-left-flex" style="cursor: pointer;" onclick="selectProductForPhotoEditByCode('${prod.product_code}')">
                     <img src="${thumbUrl}" class="product-thumb" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
                     <div class="card-details">
                         <div class="barcode-title">${prod.product_code}</div>
                         <div class="prod-name-sub">${prod.product_name || 'Без назви'}</div>
-                        <div style="font-size: 11px; color: #888;">Штрихкод: ${prod.barcode || '—'}</div>
+                        <div style="font-size: 11px; color: #888;">Штрихкод: ${bcText}</div>
                         ${linkHtml}
                     </div>
                 </div>
                 <div class="card-right-action">
-                    <button class="edit-toggle-btn" onclick="selectProductForPhotoEdit(${JSON.stringify(prod).replace(/"/g, '&quot;')})">Змінити</button>
+                    <button class="edit-toggle-btn" onclick="selectProductForPhotoEditByCode('${prod.product_code}')">Змінити</button>
                 </div>
             `;
             container.appendChild(itemDiv);
         });
     }
 
-    function findProductForPhoto(code) {
-        const codeLower = code.toLowerCase();
-        const prod = globalProducts.find(p => 
-            (p.product_code && p.product_code.toLowerCase() === codeLower) || 
-            (p.barcode && p.barcode.toLowerCase() === codeLower)
-        );
+    function selectProductForPhotoEditByCode(code) {
+        const prod = globalProducts.find(p => p.product_code === code);
+        if (prod) selectProductForPhotoEdit(prod);
+    }
 
+    function findProductForPhoto(code) {
+        const prod = findProductByCodeOrBarcode(code);
         if (!prod) {
             alert("Товар із таким кодом чи штрихкодом не знайдено в базі!");
             return;
         }
-
         selectProductForPhotoEdit(prod);
     }
 
@@ -2118,9 +2251,12 @@
         const editorCard = document.getElementById('photoEditorCard');
         editorCard.style.display = 'block';
 
+        const allBc = getAllBarcodesForProduct(prod.product_code);
+        const bcText = allBc.length > 0 ? allBc.join(', ') : (prod.barcode || '—');
+
         document.getElementById('editProductCode').innerText = prod.product_code;
         document.getElementById('editProductName').innerText = prod.product_name || 'Без назви';
-        document.getElementById('editProductBarcode').innerText = `Штрихкод: ${prod.barcode || '—'}`;
+        document.getElementById('editProductBarcode').innerText = `Штрихкоди: ${bcText}`;
         
         const thumbUrl = (prod.photo_url && prod.photo_url.trim() !== '') ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
         document.getElementById('editProductThumb').src = thumbUrl;
@@ -2192,11 +2328,13 @@
         let list = [...globalProducts];
 
         if (searchVal) {
-            list = list.filter(p => 
-                (p.product_code && p.product_code.toLowerCase().includes(searchVal)) ||
-                (p.barcode && p.barcode.toLowerCase().includes(searchVal)) ||
-                (p.product_name && p.product_name.toLowerCase().includes(searchVal))
-            );
+            list = list.filter(p => {
+                const codeMatch = p.product_code && p.product_code.toLowerCase().includes(searchVal);
+                const mainBcMatch = p.barcode && p.barcode.toLowerCase().includes(searchVal);
+                const nameMatch = p.product_name && p.product_name.toLowerCase().includes(searchVal);
+                const extraBcMatch = getAllBarcodesForProduct(p.product_code).some(bc => bc.toLowerCase().includes(searchVal));
+                return codeMatch || mainBcMatch || nameMatch || extraBcMatch;
+            });
         }
 
         if (counter) counter.innerText = `Знайдено: ${list.length}`;
@@ -2213,6 +2351,9 @@
             const plano = globalPlanograms.find(p => p.product_code?.toLowerCase() === prod.product_code?.toLowerCase());
             const shelfCapacity = plano ? (plano.shelf_capacity || 0) : 0;
 
+            const allBc = getAllBarcodesForProduct(prod.product_code);
+            const bcText = allBc.length > 0 ? allBc.join(', ') : (prod.barcode || '—');
+
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item-card';
 
@@ -2222,7 +2363,7 @@
                     <div class="card-details">
                         <div class="barcode-title" style="color: #64b5f6;">${prod.product_code}</div>
                         <div class="prod-name-sub">${prod.product_name || 'Без назви'}</div>
-                        <div style="font-size: 11px; color: #28a745; font-weight: bold;">Шк: ${prod.barcode || '—'}</div>
+                        <div style="font-size: 11px; color: #28a745; font-weight: bold; word-break: break-word;">Шк: ${bcText}</div>
                         <div style="font-size: 11px; color: #81c784;">Норма полки: <b>${shelfCapacity} шт.</b></div>
                     </div>
                 </div>
@@ -2232,6 +2373,99 @@
             `;
             container.appendChild(itemDiv);
         });
+    }
+
+    function renderDbExtraBarcodes(productCode) {
+        const listEl = document.getElementById('dbExtraBarcodesList');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const extraRows = globalProductBarcodes.filter(
+            pb => pb.product_code && pb.product_code.toLowerCase() === String(productCode).toLowerCase()
+        );
+
+        if (extraRows.length === 0) {
+            listEl.innerHTML = '<div style="font-size: 11px; color: #777;">Додаткових штрихкодів немає</div>';
+            return;
+        }
+
+        extraRows.forEach(row => {
+            const chip = document.createElement('span');
+            chip.className = 'extra-barcode-chip';
+            const safeBc = String(row.barcode).replace(/'/g, "&#39;");
+            chip.innerHTML = `
+                <span>${row.barcode}</span>
+                <button type="button" class="extra-barcode-del" title="Видалити штрихкод" onclick="deleteExtraBarcodeFromProduct('${safeBc}')">&times;</button>
+            `;
+            listEl.appendChild(chip);
+        });
+    }
+
+    async function addExtraBarcodeToProduct() {
+        if (!currentDbEditingProduct) return;
+        const inputEl = document.getElementById('dbNewExtraBarcodeInput');
+        const newBc = inputEl ? inputEl.value.trim() : '';
+        if (!newBc) {
+            alert("Введіть штрихкод!");
+            return;
+        }
+
+        const activeCode = document.getElementById('dbEditCode').value.trim() || currentDbEditingProduct.product_code;
+
+        const existingGlobal = globalProductBarcodes.find(
+            pb => pb.barcode && pb.barcode.toLowerCase() === newBc.toLowerCase()
+        );
+        if (existingGlobal) {
+            if (existingGlobal.product_code?.toLowerCase() === activeCode.toLowerCase()) {
+                alert("Цей штрихкод уже привʼязаний до цього товару.");
+            } else {
+                alert(`Цей штрихкод уже привʼязаний до іншого товару (${existingGlobal.product_code}).`);
+            }
+            return;
+        }
+
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/product_barcodes`, {
+                method: 'POST',
+                headers: HEADERS,
+                body: JSON.stringify({
+                    product_code: activeCode,
+                    barcode: newBc
+                })
+            });
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+            inputEl.value = '';
+            await loadAllData();
+            renderDbExtraBarcodes(activeCode);
+            renderDbProductList();
+        } catch (e) {
+            console.error(e);
+            alert("Помилка додавання штрихкоду: " + e.message);
+        }
+    }
+
+    async function deleteExtraBarcodeFromProduct(barcodeValue) {
+        if (!currentDbEditingProduct || !barcodeValue) return;
+        if (!confirm(`Видалити додатковий штрихкод "${barcodeValue}"?`)) return;
+
+        const activeCode = document.getElementById('dbEditCode').value.trim() || currentDbEditingProduct.product_code;
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/product_barcodes?barcode=eq.${encodeURIComponent(barcodeValue)}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+            await loadAllData();
+            renderDbExtraBarcodes(activeCode);
+            renderDbProductList();
+        } catch (e) {
+            console.error(e);
+            alert("Помилка видалення штрихкоду: " + e.message);
+        }
     }
 
     function selectDbProductForEdit(productCode) {
@@ -2246,6 +2480,10 @@
         document.getElementById('dbEditCode').value = prod.product_code;
         document.getElementById('dbEditBarcode').value = prod.barcode || '';
         document.getElementById('dbEditName').value = prod.product_name || '';
+
+        const newBcInput = document.getElementById('dbNewExtraBarcodeInput');
+        if (newBcInput) newBcInput.value = '';
+        renderDbExtraBarcodes(prod.product_code);
 
         const plano = globalPlanograms.find(p => p.product_code?.toLowerCase() === prod.product_code?.toLowerCase());
         document.getElementById('dbEditShelfCapacity').value = plano ? (plano.shelf_capacity || 0) : 0;
@@ -2276,11 +2514,14 @@
         }
 
         try {
-            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(oldCode)}`, {
+            const updProdRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(oldCode)}`, {
                 method: 'PATCH',
                 headers: HEADERS,
-                body: JSON.stringify({ product_code: newCode, barcode: newBarcode, product_name: newName })
+                body: JSON.stringify({ product_code: newCode, barcode: newBarcode || null, product_name: newName })
             });
+            if (!updProdRes.ok) {
+                throw new Error(await updProdRes.text());
+            }
 
             const existingPlano = globalPlanograms.find(p => p.product_code?.toLowerCase() === oldCode.toLowerCase());
             if (existingPlano) {
@@ -2304,7 +2545,7 @@
 
         } catch (e) {
             console.error(e);
-            alert("Помилка збереження даних.");
+            alert("Помилка збереження даних: " + e.message);
         }
     }
 
@@ -2322,15 +2563,18 @@
         if (!confirmDelete) return;
 
         try {
-            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(code)}`, {
-                method: 'DELETE',
-                headers: HEADERS
-            });
-
             await fetch(`${SUPABASE_URL}/rest/v1/planograms?product_code=eq.${encodeURIComponent(code)}`, {
                 method: 'DELETE',
                 headers: HEADERS
             });
+
+            const delProdRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(code)}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+            if (!delProdRes.ok) {
+                throw new Error(await delProdRes.text());
+            }
 
             alert("Товар успішно видалено з бази даних!");
             closeDbEditor();
@@ -2339,7 +2583,7 @@
 
         } catch (e) {
             console.error(e);
-            alert("Помилка при видаленні товару.");
+            alert("Помилка при видаленні товару: " + e.message);
         }
     }
 
@@ -2367,18 +2611,19 @@
 
             const publicUrlRes = `${SUPABASE_URL}/storage/v1/object/public/product-photos/${filePath}`;
 
-            await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentDbEditingProduct.product_code)}`, {
+            const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/products?product_code=eq.${encodeURIComponent(currentDbEditingProduct.product_code)}`, {
                 method: 'PATCH',
                 headers: { ...HEADERS, 'Prefer': 'return=minimal' },
                 body: JSON.stringify({ photo_url: publicUrlRes })
             });
+            if (!patchRes.ok) throw new Error("Помилка оновлення фото в базі даних.");
 
             alert("Фото успішно оновлено!");
             inputElem.value = '';
             await loadAllData();
             
             selectDbProductForEdit(currentDbEditingProduct.product_code);
-            renderDbPhotoList();
+            renderDbProductList();
 
         } catch (e) {
             console.error(e);
@@ -2452,16 +2697,23 @@
                 }
             }
 
-            await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+            const createRes = await fetch(`${SUPABASE_URL}/rest/v1/products`, {
                 method: 'POST',
                 headers: HEADERS,
                 body: JSON.stringify({
                     product_code: code,
-                    barcode: barcode || code,
+                    barcode: barcode || null,
                     product_name: name,
                     photo_url: uploadedPhotoUrl
                 })
             });
+            if (!createRes.ok) {
+                throw new Error(await createRes.text());
+            }
+
+            if (barcode) {
+                await ensureBarcodeLinked(code, barcode);
+            }
 
             if (shelf > 0) {
                 await fetch(`${SUPABASE_URL}/rest/v1/planograms`, {
@@ -2478,7 +2730,7 @@
 
         } catch (e) {
             console.error(e);
-            alert("Помилка створення товару.");
+            alert("Помилка створення товару: " + e.message);
         }
     }
 
