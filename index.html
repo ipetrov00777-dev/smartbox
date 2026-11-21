@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.5 - Складський облік</title>
+    <title>SmartBox v4.8.6 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -45,6 +45,7 @@
         .product-info-details { flex: 1; min-width: 0; }
         .product-info-details h3 { margin: 0 0 6px 0; color: #64b5f6; font-size: 16px; }
         .product-info-details p { margin: 3px 0; font-size: 13px; }
+        .bc-multiline { display: inline-block; line-height: 1.35; word-break: break-all; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
         th, td { border: 1px solid #333; padding: 6px; text-align: left; vertical-align: middle; }
@@ -135,7 +136,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.5 (Оновлено: 22.11.2026)</div>
+        <div class="app-version">SmartBox v4.8.6 (Оновлено: 22.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -159,7 +160,7 @@
                     <h3 id="resProductName">Назва товару</h3>
                     <p><b>Код товару:</b> <span id="resProductCode">---</span></p>
                     <p><b>Штрихкод:</b> <span id="resBarcode">---</span></p>
-                    <p><b>Всі штрихкоди:</b> <span id="resAllBarcodes" style="color: #81c784;">---</span></p>
+                    <p><b>Всі штрихкоди:</b><br><span id="resAllBarcodes" class="bc-multiline" style="color: #81c784;">---</span></p>
                     <p><b>Загальна наявність:</b> <span id="resTotalStock" class="total-badge">0 шт.</span></p>
                     <p><b>Зарезервовано шт.:</b> <span id="resTotalQty" class="total-badge" style="background: #1b5e20; color: #81c784;">0 шт.</span></p>
                 </div>
@@ -377,7 +378,7 @@
                 <div style="flex: 1; min-width: 0;">
                     <b id="editProductCode" style="color: #64b5f6; font-size: 13px;">---</b>
                     <div id="editProductName" style="font-size: 13px; color: #fff; margin: 4px 0;">---</div>
-                    <div id="editProductBarcode" style="font-size: 11px; color: #888;">Штрихкод: ---</div>
+                    <div id="editProductBarcode" class="bc-multiline" style="font-size: 11px; color: #888;">Штрихкоди: ---</div>
                 </div>
             </div>
             <div style="margin-top: 15px;">
@@ -471,7 +472,7 @@
         <h3 id="errModalTitle" style="color: #dc3545; margin-top: 0;">⚠️ Увага: Деталі помилки</h3>
         
         <p style="margin-bottom: 8px;"><b>Товар:</b> <span id="errModalProdName" style="color:#64b5f6;">---</span></p>
-        <p style="margin-top: 0; margin-bottom: 12px;"><b>Штрихкод / Код:</b> <span id="errModalProdCode" style="color:#28a745;">---</span></p>
+        <p style="margin-top: 0; margin-bottom: 12px;"><b>Штрихкоди / Код:</b><br><span id="errModalProdCode" class="bc-multiline" style="color:#28a745;">---</span></p>
 
         <div id="errModalBatchList" class="modal-batch-list" style="border-color: #dc3545;">
             <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #333;">
@@ -597,6 +598,22 @@
     let currentEditingProduct = null;
     let currentDbEditingProduct = null;
 
+    function escapeHtml(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function formatBarcodesList(barcodes, emptyText = '—') {
+        if (!Array.isArray(barcodes) || barcodes.length === 0) {
+            return escapeHtml(emptyText);
+        }
+        return barcodes.map(bc => escapeHtml(bc)).join('<br>');
+    }
+
     function getAllBarcodesForProduct(productCode) {
         if (!productCode) return [];
         const codeLower = productCode.toLowerCase();
@@ -683,7 +700,7 @@
         const totalQty = document.getElementById('resTotalQty');
         if (totalQty) totalQty.innerText = '0 шт.';
         const allBc = document.getElementById('resAllBarcodes');
-        if (allBc) allBc.innerText = '---';
+        if (allBc) allBc.innerHTML = '---';
     }
 
     function showScreen(screenId) {
@@ -1011,7 +1028,9 @@
         const prod = globalProducts.find(p => p.product_code?.toLowerCase() === code.toLowerCase());
         const prodName = prod ? prod.product_name : 'Назва не вказана';
         const allBc = getAllBarcodesForProduct(code);
-        const barcodeVal = allBc.length > 0 ? allBc.join(', ') : (prod && prod.barcode ? prod.barcode : code);
+        const barcodeListHtml = allBc.length > 0
+            ? formatBarcodesList(allBc)
+            : escapeHtml(prod && prod.barcode ? prod.barcode : code);
         const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
         const card = document.createElement('div');
@@ -1033,7 +1052,7 @@
         } else if (type === 'dbQuestion') {
             borderLeftColor = '#ff9800';
             badgeHtml = `<span onclick="openErrorModal('${code}', 'dbQuestion')" class="total-badge" style="background: #ff9800; color: #000; cursor: pointer; font-size: 11px;">БД_?</span>`;
-            infoSubText = `Штрихкод: ${barcodeVal} (Товар-заглушка, потрібен код з 1С)`;
+            infoSubText = `Штрихкоди:<br><span class="bc-multiline">${barcodeListHtml}</span><br>(Товар-заглушка, потрібен код з 1С)`;
             actionBtnText = '✎ В базу';
         }
 
@@ -1047,10 +1066,10 @@
                 <img src="${photoUrl}" class="product-thumb" onclick="event.stopPropagation(); openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
                 <div class="card-details">
                     <div class="barcode-title" style="color: #64b5f6;">
-                        ${barcodeVal} ${badgeHtml}
+                        <span class="bc-multiline">${barcodeListHtml}</span> ${badgeHtml}
                     </div>
-                    <div style="font-size: 11px; color: #aaa; font-weight: bold;">Код: ${code.toUpperCase()}</div>
-                    <div class="prod-name-sub">${prodName}</div>
+                    <div style="font-size: 11px; color: #aaa; font-weight: bold;">Код: ${escapeHtml(code.toUpperCase())}</div>
+                    <div class="prod-name-sub">${escapeHtml(prodName)}</div>
                     <div style="font-size: 11px; color: #bbb; margin-top: 3px;">${infoSubText}</div>
                 </div>
             </div>
@@ -1075,10 +1094,12 @@
         const prod = globalProducts.find(p => p.product_code?.toLowerCase() === codeLower);
         const prodName = prod ? prod.product_name : 'Назва не вказана';
         const allBc = getAllBarcodesForProduct(productCode);
-        const barcodeVal = allBc.length > 0 ? allBc.join(', ') : (prod && prod.barcode ? prod.barcode : productCode);
+        const barcodeListHtml = allBc.length > 0
+            ? formatBarcodesList(allBc)
+            : escapeHtml(prod && prod.barcode ? prod.barcode : productCode);
 
         document.getElementById('errModalProdName').innerText = prodName;
-        document.getElementById('errModalProdCode').innerText = `${barcodeVal} (Код: ${productCode.toUpperCase()})`;
+        document.getElementById('errModalProdCode').innerHTML = `${barcodeListHtml}<br><small style="color:#aaa;">Код: ${escapeHtml(productCode.toUpperCase())}</small>`;
 
         const batchList = document.getElementById('errModalBatchList');
         const descElem = document.getElementById('errModalDescription');
@@ -1170,9 +1191,9 @@
             
             const allBc = getAllBarcodesForProduct(code);
             const firstBoxWithBarcode = items.find(i => i.barcode);
-            const barcodeVal = allBc.length > 0
-                ? allBc.join(', ')
-                : (firstBoxWithBarcode ? firstBoxWithBarcode.barcode : (prod && prod.barcode ? prod.barcode : code));
+            const barcodeListHtml = allBc.length > 0
+                ? formatBarcodesList(allBc)
+                : escapeHtml(firstBoxWithBarcode ? firstBoxWithBarcode.barcode : (prod && prod.barcode ? prod.barcode : code));
             
             const photoUrl = prod && prod.photo_url ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
 
@@ -1234,8 +1255,8 @@
                     dateDisplayStr = new Date(b.arrival_date).toLocaleDateString('uk-UA');
                 }
 
-                const rowBc = b.barcode ? ` <small style="color: #28a745;">[${b.barcode}]</small>` : '';
-                boxesHtml += `📦 <b>${b.box_name}</b> = ${b.qty} шт.${rowBc} <small style="color:#aaa">(${dateDisplayStr})</small><br>`;
+                const rowBc = b.barcode ? ` <small style="color: #28a745;">[${escapeHtml(b.barcode)}]</small>` : '';
+                boxesHtml += `📦 <b>${escapeHtml(b.box_name)}</b> = ${b.qty} шт.${rowBc} <small style="color:#aaa">(${dateDisplayStr})</small><br>`;
             });
 
             const tr = document.createElement('tr');
@@ -1248,11 +1269,11 @@
                     <div style="display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px;">
                         <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото" style="width: 50px; height: 50px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid #444; cursor: pointer; flex-shrink: 0;">
                         <div style="min-width: 0; flex: 1;">
-                            <div style="font-size: 13px; font-weight: bold; color: #64b5f6;">${code}</div>
-                            <div style="font-size: 11px; color: #28a745; font-weight: bold; word-break: break-word;">Шк: ${barcodeVal}</div>
+                            <div style="font-size: 13px; font-weight: bold; color: #64b5f6;">${escapeHtml(code)}</div>
+                            <div style="font-size: 11px; color: #28a745; font-weight: bold;">Шк:<br><span class="bc-multiline">${barcodeListHtml}</span></div>
                         </div>
                     </div>
-                    <div style="font-size: 12px; color: #fff; margin-bottom: 6px; line-height: 1.3;">${prodName}</div>
+                    <div style="font-size: 12px; color: #fff; margin-bottom: 6px; line-height: 1.3;">${escapeHtml(prodName)}</div>
                     <div style="font-size: 11px; color: #aaa; line-height: 1.4;">
                         Заг. = <b>${zagStr}</b><br>
                         ТЗ. = <b>${tzStr}</b><br>
@@ -1394,7 +1415,7 @@
 
             const boxHeader = document.createElement('div');
             boxHeader.className = 'box-group-header';
-            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
+            boxHeader.innerHTML = `<span>${escapeHtml(boxName)}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
             boxGroupContainer.appendChild(boxHeader);
 
             itemsInBox.forEach(row => {
@@ -1418,9 +1439,9 @@
                     <div class="card-left-flex">
                         <img src="${row.photoUrl}" class="product-thumb" onclick="openImageModal('${row.photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Товар">
                         <div class="card-details">
-                            <div class="barcode-title">${row.barcode} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
+                            <div class="barcode-title">${escapeHtml(row.barcode)} <span class="qty-highlight">= (${row.takeQty} шт.)</span></div>
                             <div style="font-size: 11px; color: #888; margin-bottom: 2px;">${dateHtml}</div>
-                            <div class="prod-name-sub">${row.prodName}</div>
+                            <div class="prod-name-sub">${escapeHtml(row.prodName)}</div>
                             <div style="font-size: 11px; color: #64b5f6; margin-top: 3px; line-height: 1.3;">
                                 Норма: <b>${row.norm} шт.</b><br>
                                 Зараз в ТЗ: <b>${tzFormatted}</b><br>
@@ -1567,7 +1588,7 @@
         document.getElementById('resProductThumb').src = photoUrl;
 
         const allBarcodes = getAllBarcodesForProduct(currentProductCode);
-        document.getElementById('resAllBarcodes').innerText = allBarcodes.length > 0 ? allBarcodes.join(', ') : '—';
+        document.getElementById('resAllBarcodes').innerHTML = formatBarcodesList(allBarcodes);
 
         const matches = globalStock.filter(item => item.product_code && item.product_code.toLowerCase() === currentProductCode.toLowerCase());
         matches.sort((a, b) => new Date(a.arrival_date || 0) - new Date(b.arrival_date || 0));
@@ -1629,7 +1650,7 @@
                 arrivalDateFormatted = d.toLocaleDateString('uk-UA') + ' ' + d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
             }
 
-            const boxLabel = `${item.box_name} <small style="color: #28a745;">[${item.barcode || '—'}]</small>`;
+            const boxLabel = `${escapeHtml(item.box_name)} <small style="color: #28a745;">[${escapeHtml(item.barcode || '—')}]</small>`;
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -1794,7 +1815,7 @@
 
             const boxHeader = document.createElement('div');
             boxHeader.className = 'box-group-header';
-            boxHeader.innerHTML = `<span>${boxName}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
+            boxHeader.innerHTML = `<span>${escapeHtml(boxName)}</span><span class="box-badge-count">${boxPositionsCount} поз.</span>`;
             boxGroupContainer.appendChild(boxHeader);
 
             itemsInBox.forEach(item => {
@@ -1827,8 +1848,8 @@
                         ${checkboxHtml}
                         <img src="${photoUrl}" class="product-thumb" onclick="openImageModal('${photoUrl}')" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Товар">
                         <div class="card-details">
-                            <div class="barcode-title">${barcodeDisplay} <span class="qty-highlight">= (${item.qty_reserved} шт.)</span></div>
-                            <div class="prod-name-sub">${item.product_name || 'Без назви'}</div>
+                            <div class="barcode-title">${escapeHtml(barcodeDisplay)} <span class="qty-highlight">= (${item.qty_reserved} шт.)</span></div>
+                            <div class="prod-name-sub">${escapeHtml(item.product_name || 'Без назви')}</div>
                             <div style="font-size: 11px; color: #64b5f6; margin-top: 3px;">
                                 <span onclick="openInfoModal()" style="cursor: pointer; text-decoration: underline; color: #90caf9;">В ящику: <b>${remainingAfterPick} шт.*</b></span>
                             </div>
@@ -1947,8 +1968,8 @@
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td><small>${dateFormatted}</small></td>
-                        <td><b>${item.box_name}</b></td>
-                        <td><b>${item.product_code}</b><br><small style="color:#aaa">${item.product_name || ''}</small></td>
+                        <td><b>${escapeHtml(item.box_name)}</b></td>
+                        <td><b>${escapeHtml(item.product_code)}</b><br><small style="color:#aaa">${escapeHtml(item.product_name || '')}</small></td>
                         <td><span class="total-badge" style="background: #1b5e20; color: #81c784;">${item.qty_moved} шт.</span></td>
                     `;
                     tbody.appendChild(tr);
@@ -2091,10 +2112,10 @@
         sessionArrivalItems.forEach(item => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><b>${item.scanned_code}</b><br><small style="color:#aaa">${item.time}</small></td>
-                <td><b>${item.box_name}</b></td>
-                <td><span class="total-badge">${item.product_code}</span></td>
-                <td><b>${item.product_name}</b></td>
+                <td><b>${escapeHtml(item.scanned_code)}</b><br><small style="color:#aaa">${item.time}</small></td>
+                <td><b>${escapeHtml(item.box_name)}</b></td>
+                <td><span class="total-badge">${escapeHtml(item.product_code)}</span></td>
+                <td><b>${escapeHtml(item.product_name)}</b></td>
             `;
             tbody.appendChild(tr);
         });
@@ -2205,7 +2226,9 @@
             const hasPhoto = (prod.photo_url && prod.photo_url.trim() !== '' && prod.photo_url !== NO_IMAGE_PLACEHOLDER);
             const thumbUrl = hasPhoto ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
             const allBc = getAllBarcodesForProduct(prod.product_code);
-            const bcText = allBc.length > 0 ? allBc.join(', ') : (prod.barcode || '—');
+            const bcListHtml = allBc.length > 0
+                ? formatBarcodesList(allBc)
+                : escapeHtml(prod.barcode || '—');
             
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item-card';
@@ -2218,9 +2241,9 @@
                 <div class="card-left-flex" style="cursor: pointer;" onclick="selectProductForPhotoEditByCode('${prod.product_code}')">
                     <img src="${thumbUrl}" class="product-thumb" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
                     <div class="card-details">
-                        <div class="barcode-title">${prod.product_code}</div>
-                        <div class="prod-name-sub">${prod.product_name || 'Без назви'}</div>
-                        <div style="font-size: 11px; color: #888;">Штрихкод: ${bcText}</div>
+                        <div class="barcode-title">${escapeHtml(prod.product_code)}</div>
+                        <div class="prod-name-sub">${escapeHtml(prod.product_name || 'Без назви')}</div>
+                        <div style="font-size: 11px; color: #888;">Штрихкоди:<br><span class="bc-multiline">${bcListHtml}</span></div>
                         ${linkHtml}
                     </div>
                 </div>
@@ -2252,11 +2275,13 @@
         editorCard.style.display = 'block';
 
         const allBc = getAllBarcodesForProduct(prod.product_code);
-        const bcText = allBc.length > 0 ? allBc.join(', ') : (prod.barcode || '—');
+        const bcListHtml = allBc.length > 0
+            ? formatBarcodesList(allBc)
+            : escapeHtml(prod.barcode || '—');
 
         document.getElementById('editProductCode').innerText = prod.product_code;
         document.getElementById('editProductName').innerText = prod.product_name || 'Без назви';
-        document.getElementById('editProductBarcode').innerText = `Штрихкоди: ${bcText}`;
+        document.getElementById('editProductBarcode').innerHTML = `Штрихкоди:<br>${bcListHtml}`;
         
         const thumbUrl = (prod.photo_url && prod.photo_url.trim() !== '') ? prod.photo_url : NO_IMAGE_PLACEHOLDER;
         document.getElementById('editProductThumb').src = thumbUrl;
@@ -2352,7 +2377,9 @@
             const shelfCapacity = plano ? (plano.shelf_capacity || 0) : 0;
 
             const allBc = getAllBarcodesForProduct(prod.product_code);
-            const bcText = allBc.length > 0 ? allBc.join(', ') : (prod.barcode || '—');
+            const bcListHtml = allBc.length > 0
+                ? formatBarcodesList(allBc)
+                : escapeHtml(prod.barcode || '—');
 
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item-card';
@@ -2361,9 +2388,9 @@
                 <div class="card-left-flex" style="cursor: pointer;" onclick="selectDbProductForEdit('${prod.product_code}')">
                     <img src="${thumbUrl}" class="product-thumb" onerror="this.src='${NO_IMAGE_PLACEHOLDER}'" alt="Фото">
                     <div class="card-details">
-                        <div class="barcode-title" style="color: #64b5f6;">${prod.product_code}</div>
-                        <div class="prod-name-sub">${prod.product_name || 'Без назви'}</div>
-                        <div style="font-size: 11px; color: #28a745; font-weight: bold; word-break: break-word;">Шк: ${bcText}</div>
+                        <div class="barcode-title" style="color: #64b5f6;">${escapeHtml(prod.product_code)}</div>
+                        <div class="prod-name-sub">${escapeHtml(prod.product_name || 'Без назви')}</div>
+                        <div style="font-size: 11px; color: #28a745; font-weight: bold;">Шк:<br><span class="bc-multiline">${bcListHtml}</span></div>
                         <div style="font-size: 11px; color: #81c784;">Норма полки: <b>${shelfCapacity} шт.</b></div>
                     </div>
                 </div>
@@ -2394,7 +2421,7 @@
             chip.className = 'extra-barcode-chip';
             const safeBc = String(row.barcode).replace(/'/g, "&#39;");
             chip.innerHTML = `
-                <span>${row.barcode}</span>
+                <span>${escapeHtml(row.barcode)}</span>
                 <button type="button" class="extra-barcode-del" title="Видалити штрихкод" onclick="deleteExtraBarcodeFromProduct('${safeBc}')">&times;</button>
             `;
             listEl.appendChild(chip);
