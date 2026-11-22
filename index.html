@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBox v4.8.9 - Складський облік</title>
+    <title>SmartBox v4.9.0 - Складський облік</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #121212; color: #e0e0e0; }
         .container { max-width: 650px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
@@ -52,8 +52,19 @@
         th { background: #2a2a2a; }
         .total-badge { background: #1a2733; color: #64b5f6; padding: 2px 5px; border-radius: 4px; font-weight: bold; }
         
-        .qty-select-table { width: 68px !important; padding: 5px 4px !important; font-size: 15px !important; font-weight: bold; text-align: center; border: 1px solid #1a73e8 !important; border-radius: 6px; background: #2b2b2b; color: #fff; cursor: pointer; }
-        .qty-select-table:disabled { opacity: 0.45; cursor: not-allowed; border-color: #555 !important; }
+        .qty-picker-btn { width: 56px; padding: 6px 4px; font-size: 16px; font-weight: bold; text-align: center; border: 1px solid #1a73e8; border-radius: 6px; background: #2b2b2b; color: #fff; cursor: pointer; display: inline-block; }
+        .qty-picker-btn:hover { background: #1a2733; }
+        .qty-picker-btn.selected-val { border-color: #28a745; color: #81c784; }
+        .qty-picker-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: #555; color: #888; }
+
+        .qty-popover-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 1050; justify-content: center; align-items: center; padding: 16px; box-sizing: border-box; }
+        .qty-popover-overlay.active { display: flex; }
+        .qty-popover-box { background: #1e1e1e; border: 1px solid #1a73e8; border-radius: 10px; padding: 12px; width: 220px; max-width: 90vw; box-shadow: 0 8px 24px rgba(0,0,0,0.75); }
+        .qty-popover-title { font-size: 13px; font-weight: bold; color: #90caf9; text-align: center; margin-bottom: 10px; }
+        .qty-num-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 240px; overflow-y: auto; }
+        .qty-num-btn { background: #2b2b2b; border: 1px solid #444; color: #fff; border-radius: 8px; padding: 10px 0; font-size: 17px; font-weight: bold; cursor: pointer; text-align: center; }
+        .qty-num-btn:hover { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+        .qty-num-btn.active { background: #1b5e20; border-color: #4caf50; color: #a5d6a7; }
         
         .global-cart-btn { margin-top: 12px; background: #28a745; color: white; border: none; padding: 10px; width: 100%; border-radius: 6px; font-size: 15px; font-weight: bold; transition: background 0.2s; cursor: pointer; }
         .global-cart-btn:hover { background: #218838; }
@@ -137,7 +148,7 @@
                 🛒 Корзинка <span id="cartBadge" class="badge-count">0</span>
             </button>
         </div>
-        <div class="app-version">SmartBox v4.8.9 (Оновлено: 22.11.2026)</div>
+        <div class="app-version">SmartBox v4.9.0 (Оновлено: 22.11.2026)</div>
     </div>
 
     <!-- 2. РОЗДІЛ: ІНФОРМАЦІЯ / СКАНУВАННЯ -->
@@ -473,6 +484,14 @@
 
 </div>
 
+<!-- КОМПАКТНЕ МЕНЮ ВИБОРУ КІЛЬКОСТІ (БЕЗ РАДІОКНОПОК) -->
+<div id="qtyPopover" class="qty-popover-overlay" onclick="closeQtyPopover()">
+    <div class="qty-popover-box" onclick="event.stopPropagation()">
+        <div id="qtyPopoverTitle" class="qty-popover-title">Кількість (шт.)</div>
+        <div id="qtyPopoverGrid" class="qty-num-grid"></div>
+    </div>
+</div>
+
 <!-- МОДАЛКА ДЕТАЛЕЙ ПОМИЛКИ -->
 <div id="errorModal" class="modal-overlay" onclick="closeErrorModal()">
     <div class="info-modal-content" onclick="event.stopPropagation()" style="border-color: #dc3545;">
@@ -597,6 +616,7 @@
     let currentProductName = '';
     let currentProductCode = '';
     let currentActualBarcode = '';
+    let activeQtyPopoverCtx = null;
 
     let currentArrivalBox = '';
     let sessionArrivalItems = [];
@@ -716,6 +736,7 @@
     }
 
     function resetInfoSection() {
+        closeQtyPopover();
         currentProductCode = '';
         currentProductName = '';
         currentActualBarcode = '';
@@ -735,6 +756,7 @@
     }
 
     function showScreen(screenId) {
+        closeQtyPopover();
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
         window.scrollTo(0, 0);
@@ -1668,7 +1690,11 @@
         document.getElementById('resProductCode').innerText = currentProductCode;
         document.getElementById('resBarcode').innerText = currentActualBarcode;
         
-        currentScannedMatches = matches.map(item => ({ ...item, originalQty: parseInt(item.qty, 10) || 0 }));
+        currentScannedMatches = matches.map(item => ({
+            ...item,
+            originalQty: parseInt(item.qty, 10) || 0,
+            selectedQty: 0
+        }));
         resultCard.style.display = 'block';
         renderLocationsTable();
     }
@@ -1685,7 +1711,7 @@
         }
 
         currentScannedMatches.forEach((item, idx) => {
-            const selectId = `qtyInput_${idx}`;
+            const btnId = `qtyBtn_${idx}`;
             const rowBarcode = item.barcode || currentActualBarcode;
             const cartItems = dbCartItems.filter(c => 
                 c.box_name === item.box_name && 
@@ -1694,6 +1720,11 @@
             );
             const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
             const availableForInput = Math.max(0, item.originalQty - inCartQty);
+
+            if ((parseInt(item.selectedQty, 10) || 0) > availableForInput) {
+                item.selectedQty = 0;
+            }
+            const currentVal = parseInt(item.selectedQty, 10) || 0;
 
             let stockHtml = `${item.originalQty} шт.`;
             if (inCartQty > 0) {
@@ -1723,27 +1754,71 @@
 
             const boxLabel = `${escapeHtml(item.box_name)} <small style="color: #28a745;">[${escapeHtml(item.barcode || '—')}]</small>`;
 
-            let optionsHtml = '';
-            for (let n = 0; n <= availableForInput; n++) {
-                optionsHtml += `<option value="${n}">${n}</option>`;
-            }
             const disabledAttr = availableForInput <= 0 ? 'disabled' : '';
+            const selectedClass = currentVal > 0 ? 'selected-val' : '';
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${boxLabel}</b></td>
                 <td><small style="color: #aaa;">${arrivalDateFormatted}</small></td>
                 <td><span class="total-badge" id="availBadge_${idx}">${stockHtml}</span></td>
-                <td><select id="${selectId}" class="qty-select-table" ${disabledAttr} onchange="handleQtySelect(${idx}, ${item.originalQty}, ${inCartQty})">${optionsHtml}</select></td>
+                <td><button type="button" id="${btnId}" class="qty-picker-btn ${selectedClass}" ${disabledAttr} onclick="openQtyPopover(${idx}, ${item.originalQty}, ${inCartQty}, ${availableForInput})">${currentVal}</button></td>
             `;
             tbody.appendChild(tr);
         });
         updateSummaryTotals();
     }
 
-    function handleQtySelect(idx, originalQty, inCartQty) {
-        const selectEl = document.getElementById(`qtyInput_${idx}`);
-        const val = parseInt(selectEl?.value, 10) || 0;
+    function openQtyPopover(idx, originalQty, inCartQty, maxVal) {
+        if (maxVal < 0) return;
+        const item = currentScannedMatches[idx];
+        if (!item) return;
+
+        activeQtyPopoverCtx = { idx, originalQty, inCartQty, maxVal };
+        const currentSelected = parseInt(item.selectedQty, 10) || 0;
+
+        document.getElementById('qtyPopoverTitle').innerText = `${item.box_name} (0..${maxVal})`;
+        const grid = document.getElementById('qtyPopoverGrid');
+        grid.innerHTML = '';
+
+        for (let n = 0; n <= maxVal; n++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'qty-num-btn' + (n === currentSelected ? ' active' : '');
+            btn.innerText = String(n);
+            btn.onclick = () => selectQtyFromPopover(n);
+            grid.appendChild(btn);
+        }
+
+        document.getElementById('qtyPopover').classList.add('active');
+    }
+
+    function closeQtyPopover() {
+        activeQtyPopoverCtx = null;
+        const pop = document.getElementById('qtyPopover');
+        if (pop) pop.classList.remove('active');
+    }
+
+    function selectQtyFromPopover(val) {
+        if (!activeQtyPopoverCtx) return;
+        const { idx, originalQty, inCartQty } = activeQtyPopoverCtx;
+        closeQtyPopover();
+        handleQtySelect(idx, originalQty, inCartQty, val);
+    }
+
+    function handleQtySelect(idx, originalQty, inCartQty, newVal) {
+        const val = parseInt(newVal, 10) || 0;
+        const item = currentScannedMatches[idx];
+        if (!item) return;
+
+        item.selectedQty = val;
+
+        const btnEl = document.getElementById(`qtyBtn_${idx}`);
+        if (btnEl) {
+            btnEl.innerText = String(val);
+            if (val > 0) btnEl.classList.add('selected-val');
+            else btnEl.classList.remove('selected-val');
+        }
 
         const totalWithCurrentInput = inCartQty + val;
         let stockHtml = `${originalQty} шт.`;
@@ -1751,13 +1826,15 @@
             const remainder = Math.max(0, originalQty - totalWithCurrentInput);
             stockHtml = `${originalQty} шт. / <span style="color: #ff6b6b; font-weight: bold;">${remainder}</span>`;
         }
-        document.getElementById(`availBadge_${idx}`).innerHTML = stockHtml;
+        const badgeEl = document.getElementById(`availBadge_${idx}`);
+        if (badgeEl) badgeEl.innerHTML = stockHtml;
+
         updateSummaryTotals();
     }
 
     function updateSummaryTotals() {
         let totalOriginalStock = 0, totalAlreadyInCart = 0, totalCurrentInput = 0, hasAnyQty = false;
-        currentScannedMatches.forEach((item, idx) => {
+        currentScannedMatches.forEach((item) => {
             const rowBarcode = item.barcode || currentActualBarcode;
             const cartItems = dbCartItems.filter(c => 
                 c.box_name === item.box_name && 
@@ -1765,7 +1842,7 @@
                 (!c.barcode || c.barcode === rowBarcode)
             );
             const inCartQty = cartItems.reduce((sum, c) => sum + (parseInt(c.qty_reserved, 10) || 0), 0);
-            const inputVal = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
+            const inputVal = parseInt(item.selectedQty, 10) || 0;
             totalOriginalStock += item.originalQty;
             totalAlreadyInCart += inCartQty;
             totalCurrentInput += inputVal;
@@ -1793,8 +1870,8 @@
         
         const requests = [];
 
-        currentScannedMatches.forEach((item, idx) => {
-            const qtyToReserve = parseInt(document.getElementById(`qtyInput_${idx}`)?.value, 10) || 0;
+        currentScannedMatches.forEach((item) => {
+            const qtyToReserve = parseInt(item.selectedQty, 10) || 0;
             if (qtyToReserve > 0) {
                 const rowBarcode = item.barcode || currentActualBarcode;
 
